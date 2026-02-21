@@ -1,11 +1,5 @@
-use std::{
-    collections::HashMap,
-    iter::Peekable,
-    str::{Chars, from_utf8},
-    thread::current,
-};
-
 use crate::LoxError;
+use std::{collections::HashMap, str};
 
 pub struct Scanner<'a> {
     source: &'a [u8],
@@ -41,53 +35,53 @@ impl<'a> Scanner<'a> {
             self.scan_token();
         }
         self.tokens
-            .push(Token::new(TokenType::EOF, b"", Literal::None, self.line));
+            .push(Token::new(TokenType::Eof, b"", Literal::None, self.line));
         self.tokens
     }
 
     fn scan_token(&mut self) {
         let c = self.advance();
         match c {
-            b'(' => self.add_token(TokenType::LEFT_PAREN),
-            b')' => self.add_token(TokenType::RIGHT_PAREN),
-            b'{' => self.add_token(TokenType::LEFT_BRACE),
-            b'}' => self.add_token(TokenType::RIGHT_BRACE),
-            b',' => self.add_token(TokenType::COMMA),
-            b'.' => self.add_token(TokenType::DOT),
-            b'-' => self.add_token(TokenType::MINUS),
-            b'+' => self.add_token(TokenType::PLUS),
-            b';' => self.add_token(TokenType::SEMICOLON),
-            b'*' => self.add_token(TokenType::STAR),
+            b'(' => self.add_token(TokenType::LeftParen),
+            b')' => self.add_token(TokenType::RightParen),
+            b'{' => self.add_token(TokenType::LeftBrace),
+            b'}' => self.add_token(TokenType::RightBrace),
+            b',' => self.add_token(TokenType::Comma),
+            b'.' => self.add_token(TokenType::Dot),
+            b'-' => self.add_token(TokenType::Minus),
+            b'+' => self.add_token(TokenType::Plus),
+            b';' => self.add_token(TokenType::Semicolon),
+            b'*' => self.add_token(TokenType::Star),
 
             b'!' => {
                 let token_type = if self.match_char(b'=') {
-                    TokenType::BANG_EQUAL
+                    TokenType::BangEqual
                 } else {
-                    TokenType::BANG
+                    TokenType::Bang
                 };
                 self.add_token(token_type);
             }
             b'=' => {
                 let token_type = if self.match_char(b'=') {
-                    TokenType::EQUAL_EQUAL
+                    TokenType::EqualEqual
                 } else {
-                    TokenType::EQUAL
+                    TokenType::Equal
                 };
                 self.add_token(token_type);
             }
             b'<' => {
                 let token_type = if self.match_char(b'=') {
-                    TokenType::LESS_EQUAL
+                    TokenType::LessEqual
                 } else {
-                    TokenType::LESS
+                    TokenType::Less
                 };
                 self.add_token(token_type);
             }
             b'>' => {
                 let token_type = if self.match_char(b'=') {
-                    TokenType::GREATER_EQUAL
+                    TokenType::GreaterEqual
                 } else {
-                    TokenType::GREATER
+                    TokenType::Greater
                 };
                 self.add_token(token_type);
             }
@@ -97,7 +91,7 @@ impl<'a> Scanner<'a> {
                         self.advance();
                     }
                 } else {
-                    self.add_token(TokenType::SLASH);
+                    self.add_token(TokenType::Slash);
                 }
             }
 
@@ -125,7 +119,6 @@ impl<'a> Scanner<'a> {
                 );
             }
         }
-        // todo!()
     }
 
     fn advance(&mut self) -> u8 {
@@ -191,7 +184,7 @@ impl<'a> Scanner<'a> {
 
         let value = &self.source[self.start + 1..self.current - 1];
         let value = str::from_utf8(value).unwrap();
-        self.add_token_literal(TokenType::STRING, Literal::String(value));
+        self.add_token_literal(TokenType::String, Literal::String(value));
     }
 
     fn is_digit(c: u8) -> bool {
@@ -217,7 +210,7 @@ impl<'a> Scanner<'a> {
         let number = &self.source[self.start..self.current];
         let number = str::from_utf8(number).unwrap();
         let number: f64 = number.parse().unwrap();
-        self.add_token_literal(TokenType::NUMBER, Literal::Number(number));
+        self.add_token_literal(TokenType::Number, Literal::Number(number));
     }
 
     fn is_alpha_numeric(c: u8) -> bool {
@@ -234,7 +227,7 @@ impl<'a> Scanner<'a> {
         let token_type = self
             .token_keyword_map
             .get(text)
-            .unwrap_or(&TokenType::IDENTIFIER);
+            .unwrap_or(&TokenType::Identifier);
         self.add_token(token_type.clone());
     }
 }
@@ -242,72 +235,72 @@ impl<'a> Scanner<'a> {
 #[derive(Debug, Clone)]
 enum TokenType {
     // Single-character tokens.
-    LEFT_PAREN,
-    RIGHT_PAREN,
-    LEFT_BRACE,
-    RIGHT_BRACE,
-    COMMA,
-    DOT,
-    MINUS,
-    PLUS,
-    SEMICOLON,
-    SLASH,
-    STAR,
+    LeftParen,
+    RightParen,
+    LeftBrace,
+    RightBrace,
+    Comma,
+    Dot,
+    Minus,
+    Plus,
+    Semicolon,
+    Slash,
+    Star,
     // One or two character tokens.
-    BANG,
-    BANG_EQUAL,
-    EQUAL,
-    EQUAL_EQUAL,
-    GREATER,
-    GREATER_EQUAL,
-    LESS,
-    LESS_EQUAL,
+    Bang,
+    BangEqual,
+    Equal,
+    EqualEqual,
+    Greater,
+    GreaterEqual,
+    Less,
+    LessEqual,
 
     // Literals
-    STRING,
-    NUMBER,
-    IDENTIFIER,
+    String,
+    Number,
+    Identifier,
 
     // Keywords
-    AND,
-    CLASS,
-    ELSE,
-    FALSE,
-    FUN,
-    FOR,
-    IF,
-    NIL,
-    OR,
-    PRINT,
-    RETURN,
-    SUPER,
-    THIS,
-    TRUE,
-    VAR,
-    WHILE,
+    And,
+    Class,
+    Else,
+    False,
+    Fun,
+    For,
+    If,
+    Nil,
+    Or,
+    Print,
+    Return,
+    Super,
+    This,
+    True,
+    Var,
+    While,
 
-    EOF,
+    Eof,
 }
 
 impl TokenType {
     fn get_token_keyword_map() -> HashMap<&'static str, TokenType> {
         let mut token_keyword_map = HashMap::new();
-        token_keyword_map.insert("and", TokenType::AND);
-        token_keyword_map.insert("class", TokenType::CLASS);
-        token_keyword_map.insert("else", TokenType::ELSE);
-        token_keyword_map.insert("false", TokenType::FALSE);
-        token_keyword_map.insert("for", TokenType::FOR);
-        token_keyword_map.insert("fun", TokenType::FUN);
-        token_keyword_map.insert("if", TokenType::IF);
-        token_keyword_map.insert("nil", TokenType::NIL);
-        token_keyword_map.insert("or", TokenType::OR);
-        token_keyword_map.insert("print", TokenType::PRINT);
-        token_keyword_map.insert("return", TokenType::RETURN);
-        token_keyword_map.insert("super", TokenType::SUPER);
-        token_keyword_map.insert("this", TokenType::THIS);
-        token_keyword_map.insert("true", TokenType::TRUE);
-        token_keyword_map.insert("var", TokenType::VAR);
-        token_keyword_map.insert("while", TokenType::WHILE);
+        token_keyword_map.insert("and", TokenType::And);
+        token_keyword_map.insert("class", TokenType::Class);
+        token_keyword_map.insert("else", TokenType::Else);
+        token_keyword_map.insert("false", TokenType::False);
+        token_keyword_map.insert("for", TokenType::For);
+        token_keyword_map.insert("fun", TokenType::Fun);
+        token_keyword_map.insert("if", TokenType::If);
+        token_keyword_map.insert("nil", TokenType::Nil);
+        token_keyword_map.insert("or", TokenType::Or);
+        token_keyword_map.insert("print", TokenType::Print);
+        token_keyword_map.insert("return", TokenType::Return);
+        token_keyword_map.insert("super", TokenType::Super);
+        token_keyword_map.insert("this", TokenType::This);
+        token_keyword_map.insert("true", TokenType::True);
+        token_keyword_map.insert("var", TokenType::Var);
+        token_keyword_map.insert("while", TokenType::While);
         token_keyword_map
     }
 }

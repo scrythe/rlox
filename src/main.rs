@@ -1,4 +1,8 @@
-use std::{env, fs, io, path::Path, process};
+use std::{
+    env, fs,
+    io::{self, Write},
+    process,
+};
 mod scanner;
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -31,11 +35,15 @@ impl Lox {
     }
     fn run_prompt(&mut self) {
         loop {
-            println!("> ");
+            print!("> ");
+            io::stdout().flush().unwrap();
             let mut line = String::new();
             io::stdin()
                 .read_line(&mut line)
                 .expect("Failed to read line");
+            if line.is_empty() {
+                break;
+            }
             self.run(line);
             self.lox_error.had_error = false;
         }
@@ -47,7 +55,8 @@ impl Lox {
         for token in tokens {
             println!("{:?}", token);
         }
-        todo!()
+
+        // TODO complete ig
     }
 }
 
