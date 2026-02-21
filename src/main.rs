@@ -14,18 +14,18 @@ fn main() {
 }
 
 struct Lox {
-    had_error: bool,
+    lox_error: LoxError,
 }
 
 impl Lox {
     fn new() -> Lox {
-        let had_error = false;
-        Lox { had_error }
+        let lox_error = LoxError::new();
+        Lox { lox_error }
     }
-    fn run_file(&self, file_path: &str) {
+    fn run_file(&mut self, file_path: &str) {
         let source = fs::read_to_string(file_path).unwrap();
         self.run(source);
-        if self.had_error {
+        if self.lox_error.had_error {
             process::exit(65);
         }
     }
@@ -37,13 +37,27 @@ impl Lox {
                 .read_line(&mut line)
                 .expect("Failed to read line");
             self.run(line);
-            self.had_error = false;
+            self.lox_error.had_error = false;
         }
     }
-    fn run(&self, source: String) {
-        let scanner = scanner::Scanner::new(source);
-        scanner.scan_tokens();
+    fn run(&mut self, source: String) {
+        let scanner = scanner::Scanner::new(&source);
+        let tokens = scanner.scan_tokens(&mut self.lox_error);
+
+        for token in tokens {
+            println!("{:?}", token);
+        }
         todo!()
+    }
+}
+
+struct LoxError {
+    had_error: bool,
+}
+impl LoxError {
+    fn new() -> LoxError {
+        let had_error = false;
+        LoxError { had_error }
     }
 
     fn error(&mut self, line: u32, message: &str) {
@@ -58,8 +72,15 @@ impl Lox {
 
 #[cfg(test)]
 mod test {
+    use super::*;
     #[test]
-    fn name() {
-        todo!();
+    fn test() {
+        let source = r#"/ *
+// aaa *
+()
+"#;
+        dbg!(source);
+        let mut lox = Lox::new();
+        lox.run(source.to_string());
     }
 }
