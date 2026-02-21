@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     iter::Peekable,
     str::{Chars, from_utf8},
     thread::current,
@@ -12,34 +13,39 @@ pub struct Scanner<'a> {
     start: usize,
     current: usize,
     line: u32,
+    lox_error: &'a mut LoxError,
+    token_keyword_map: HashMap<&'static str, TokenType>,
 }
 
 impl<'a> Scanner<'a> {
-    pub fn new(source: &'a str) -> Scanner<'a> {
+    pub fn new(source: &'a str, lox_error: &'a mut LoxError) -> Scanner<'a> {
         let source = source.as_bytes();
         let tokens = Vec::new();
         let start = 0;
         let current = 0;
         let line = 1;
+        let token_keyword_map = TokenType::get_token_keyword_map();
         Scanner {
             source,
             tokens,
             start,
             current,
             line,
+            lox_error,
+            token_keyword_map,
         }
     }
-    pub fn scan_tokens(mut self, lox_error: &mut LoxError) -> Vec<Token<'a>> {
+    pub fn scan_tokens(mut self) -> Vec<Token<'a>> {
         while !self.is_at_end() {
             self.start = self.current;
-            self.scan_token(lox_error);
+            self.scan_token();
         }
         self.tokens
-            .push(Token::new(TokenType::EOF, b"", "", self.line));
+            .push(Token::new(TokenType::EOF, b"", Literal::None, self.line));
         self.tokens
     }
 
-    fn scan_token(&mut self, lox_error: &mut LoxError) {
+    fn scan_token(&mut self) {
         let c = self.advance();
         match c {
             b'(' => self.add_token(TokenType::LEFT_PAREN),
@@ -95,8 +101,22 @@ impl<'a> Scanner<'a> {
                 }
             }
 
+            b' ' => {}
+            b'\r' => {}
+            b'\t' => {}
+
+            b'\n' => self.line += 1,
+
+            b'"' => self.string(),
+
+            b'0'..=b'9' => self.number(),
+
+            b'a'..=b'z' => self.identifier(),
+            b'A'..=b'Z' => self.identifier(),
+            b'_' => self.identifier(),
+
             c => {
-                lox_error.error(
+                self.lox_error.error(
                     self.line,
                     &format!(
                         "Unexpected character {}",
@@ -132,12 +152,19 @@ impl<'a> Scanner<'a> {
             self.source[self.current]
         }
     }
-
-    fn add_token(&mut self, token_type: TokenType) {
-        self.add_token_literal(token_type, "");
+    fn peek_next(&self) -> u8 {
+        if self.current + 1 >= self.source.len() {
+            b'\0'
+        } else {
+            self.source[self.current + 1]
+        }
     }
 
-    fn add_token_literal(&mut self, token_type: TokenType, literal: &'a str) {
+    fn add_token(&mut self, token_type: TokenType) {
+        self.add_token_literal(token_type, Literal::None);
+    }
+
+    fn add_token_literal(&mut self, token_type: TokenType, literal: Literal<'a>) {
         let text = &self.source[self.start..self.current];
         self.tokens
             .push(Token::new(token_type, text, literal, self.line));
@@ -146,9 +173,73 @@ impl<'a> Scanner<'a> {
     fn is_at_end(&self) -> bool {
         self.current >= self.source.len()
     }
+
+    fn string(&mut self) {
+        while self.peek() != b'"' && !self.is_at_end() {
+            if self.peek() == b'\n' {
+                self.line += 1
+            }
+            self.advance();
+        }
+
+        if self.is_at_end() {
+            self.lox_error.error(self.line, "Unterminated string.");
+            return;
+        }
+        // for closing "
+        self.advance();
+
+        let value = &self.source[self.start + 1..self.current - 1];
+        let value = str::from_utf8(value).unwrap();
+        self.add_token_literal(TokenType::STRING, Literal::String(value));
+    }
+
+    fn is_digit(c: u8) -> bool {
+        // c >= b'0' && c <= b'9'
+        // (b'0'..=b'9').contains(&c)
+        c.is_ascii_digit()
+    }
+
+    fn number(&mut self) {
+        while Scanner::is_digit(self.peek()) {
+            self.advance();
+        }
+
+        if self.peek() == b'.' && Scanner::is_digit(self.peek_next()) {
+            // Consume '.'
+            self.advance();
+
+            while Scanner::is_digit(self.peek()) {
+                self.advance();
+            }
+        }
+
+        let number = &self.source[self.start..self.current];
+        let number = str::from_utf8(number).unwrap();
+        let number: f64 = number.parse().unwrap();
+        self.add_token_literal(TokenType::NUMBER, Literal::Number(number));
+    }
+
+    fn is_alpha_numeric(c: u8) -> bool {
+        c.is_ascii_alphanumeric()
+    }
+
+    fn identifier(&mut self) {
+        while Scanner::is_alpha_numeric(self.peek()) {
+            self.advance();
+        }
+
+        let text = &self.source[self.start..self.current];
+        let text = str::from_utf8(text).unwrap();
+        let token_type = self
+            .token_keyword_map
+            .get(text)
+            .unwrap_or(&TokenType::IDENTIFIER);
+        self.add_token(token_type.clone());
+    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum TokenType {
     // Single-character tokens.
     LEFT_PAREN,
@@ -172,19 +263,72 @@ enum TokenType {
     LESS,
     LESS_EQUAL,
 
+    // Literals
+    STRING,
+    NUMBER,
+    IDENTIFIER,
+
+    // Keywords
+    AND,
+    CLASS,
+    ELSE,
+    FALSE,
+    FUN,
+    FOR,
+    IF,
+    NIL,
+    OR,
+    PRINT,
+    RETURN,
+    SUPER,
+    THIS,
+    TRUE,
+    VAR,
+    WHILE,
+
     EOF,
+}
+
+impl TokenType {
+    fn get_token_keyword_map() -> HashMap<&'static str, TokenType> {
+        let mut token_keyword_map = HashMap::new();
+        token_keyword_map.insert("and", TokenType::AND);
+        token_keyword_map.insert("class", TokenType::CLASS);
+        token_keyword_map.insert("else", TokenType::ELSE);
+        token_keyword_map.insert("false", TokenType::FALSE);
+        token_keyword_map.insert("for", TokenType::FOR);
+        token_keyword_map.insert("fun", TokenType::FUN);
+        token_keyword_map.insert("if", TokenType::IF);
+        token_keyword_map.insert("nil", TokenType::NIL);
+        token_keyword_map.insert("or", TokenType::OR);
+        token_keyword_map.insert("print", TokenType::PRINT);
+        token_keyword_map.insert("return", TokenType::RETURN);
+        token_keyword_map.insert("super", TokenType::SUPER);
+        token_keyword_map.insert("this", TokenType::THIS);
+        token_keyword_map.insert("true", TokenType::TRUE);
+        token_keyword_map.insert("var", TokenType::VAR);
+        token_keyword_map.insert("while", TokenType::WHILE);
+        token_keyword_map
+    }
+}
+
+#[derive(Debug)]
+enum Literal<'a> {
+    None,
+    String(&'a str),
+    Number(f64),
 }
 
 #[derive(Debug)]
 pub struct Token<'a> {
     token_type: TokenType,
     lexeme: &'a [u8],
-    literal: &'a str,
+    literal: Literal<'a>,
     line: u32,
 }
 
 impl<'a> Token<'a> {
-    fn new(token_type: TokenType, lexeme: &'a [u8], literal: &'a str, line: u32) -> Token<'a> {
+    fn new(token_type: TokenType, lexeme: &'a [u8], literal: Literal<'a>, line: u32) -> Token<'a> {
         Token {
             token_type,
             lexeme,

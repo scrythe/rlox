@@ -41,8 +41,8 @@ impl Lox {
         }
     }
     fn run(&mut self, source: String) {
-        let scanner = scanner::Scanner::new(&source);
-        let tokens = scanner.scan_tokens(&mut self.lox_error);
+        let scanner = scanner::Scanner::new(&source, &mut self.lox_error);
+        let tokens = scanner.scan_tokens();
 
         for token in tokens {
             println!("{:?}", token);
@@ -78,6 +78,9 @@ mod test {
         let source = r#"/ *
 // aaa *
 ()
+" s "
+5.7
+"
 "#;
         dbg!(source);
         let mut lox = Lox::new();
