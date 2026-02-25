@@ -52,7 +52,7 @@ impl Lox {
     fn run(&mut self, source: String) {
         let scanner = scanner::Scanner::new(&source, &mut self.lox_error);
         let tokens = scanner.scan_tokens();
-        let ast_printer = parser::AstPrinter::print();
+        // let ast_printer = parser::AstPrinter::print();
 
         for token in tokens {
             println!("{:?}", token);

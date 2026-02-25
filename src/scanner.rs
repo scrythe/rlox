@@ -233,7 +233,7 @@ impl<'a> Scanner<'a> {
 }
 
 #[derive(Debug, Clone)]
-enum TokenType {
+pub enum TokenType {
     // Single-character tokens.
     LeftParen,
     RightParen,
@@ -315,13 +315,18 @@ pub enum Literal<'a> {
 #[derive(Debug)]
 pub struct Token<'a> {
     token_type: TokenType,
-    lexeme: &'a [u8],
+    pub lexeme: &'a [u8],
     literal: Literal<'a>,
     line: u32,
 }
 
 impl<'a> Token<'a> {
-    fn new(token_type: TokenType, lexeme: &'a [u8], literal: Literal<'a>, line: u32) -> Token<'a> {
+    pub fn new(
+        token_type: TokenType,
+        lexeme: &'a [u8],
+        literal: Literal<'a>,
+        line: u32,
+    ) -> Token<'a> {
         Token {
             token_type,
             lexeme,
