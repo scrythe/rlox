@@ -306,7 +306,7 @@ impl TokenType {
 }
 
 #[derive(Debug)]
-enum Literal<'a> {
+pub enum Literal<'a> {
     None,
     String(&'a str),
     Number(f64),
