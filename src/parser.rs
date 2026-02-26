@@ -1,38 +1,22 @@
 pub struct AstPrinter {}
 
-macro_rules! define_single_ast {
-    // Binary          <'a>:                Expr: left, Expr: right
-    ($class_type:ident $(<$lt:lifetime>)? -> $($field_names:ident: $field_class_types:ty),+;) => {
-        #[derive(Debug)]
-        struct $class_type $(<$lt>)? {
-            $($field_names: $field_class_types,)+
-        }
-
-        impl $(<$lt>)?  $class_type $(<$lt>)? {
-            fn new($($field_names: $field_class_types,)+)->$class_type $(<$lt>)? {
-                $class_type {$($field_names),*}
-            }
-            fn boxed_new($($field_names: $field_class_types,)+)->Box<$class_type $(<$lt>)?> {
-                Box::new($class_type {$($field_names),*})
-            }
-        }
-    };
-}
-
 macro_rules! define_ast {
      ($expr_class:ident<$expr_lt:lifetime>;
-     $($class_type_expr:ident, $class_types:ident $(<$lt:lifetime>)? -> $($field_names:ident: $field_class_types:ty),+;)+) => {
+     $($class_method_name:ident, $class_types:ident $(<$lt:lifetime>)? -> $($field_names:ident: $field_class_types:ty),+;)+) => {
         #[derive(Debug)]
         pub enum $expr_class<$expr_lt> {
             $($class_types(Box<$class_types $(<$lt>)? >)),+
         }
         impl<$expr_lt> $expr_class<$expr_lt> {
         $(
-         fn $class_type_expr ($($field_names: $field_class_types),+) -> $expr_class<$expr_lt> { $expr_class::$class_types(Box::new($class_types {$($field_names),*}))  }
+         fn $class_method_name ($($field_names: $field_class_types),+) -> $expr_class<$expr_lt> { $expr_class::$class_types(Box::new($class_types {$($field_names),*}))  }
         )+
         }
         $(
-            define_single_ast!($class_types $(<$lt>)? -> $($field_names: $field_class_types),+;);
+            #[derive(Debug)]
+            pub struct $class_types $(<$lt>)? {
+                $($field_names: $field_class_types,)+
+            }
         )+
     };
 }
@@ -51,10 +35,6 @@ define_ast!(
 );
 
 impl AstPrinter {
-    // pub fn print_stdout(expr: Expr) {
-    //     let result = AstPrinter::print(expr);
-    //     println!("{result}");
-    // }
     pub fn print(expr: Expr) -> String {
         match expr {
             Expr::Binary(binary_expr) => {
@@ -160,13 +140,14 @@ impl<'a> Parser<'a> {
         if self.match_token(&[TokenType::Bang, TokenType::Minus]) {
             let operator = self.previous().clone();
             let right = self.unary();
-            Expr::Unary(Unary::boxed_new(operator, right))
+            Expr::unary_expr(operator, right)
         } else {
             self.primary()
         }
     }
 
     fn primary(&mut self) -> Expr<'a> {
+        // primary ->  Number | String | "true" | "false "| "nil" | "(" expression ")"
         if self.match_token(&[TokenType::False]) {
             return Expr::literal_expr(LiteralValue::False);
         }
@@ -264,12 +245,11 @@ mod test {
     #[test]
     fn test_ast() {
         let token = Token::new(TokenType::Plus, "+", LiteralValue::None, 1);
-        let expr = Binary::new(
+        let expr = Expr::binary_expr(
             Expr::literal_expr(LiteralValue::Number(5.0)),
             token,
             Expr::literal_expr(LiteralValue::Number(4.3)),
         );
-        let expr = Expr::Binary(Box::new(expr));
         let out = AstPrinter::print(expr);
         assert_eq!(out, "+ 5 4.3")
     }
