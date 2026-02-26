@@ -310,7 +310,7 @@ impl TokenType {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum LiteralValue<'a> {
     None,
     String(&'a str),
@@ -319,11 +319,11 @@ pub enum LiteralValue<'a> {
     True,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Token<'a> {
     pub token_type: TokenType,
     pub lexeme: &'a str,
-    literal: LiteralValue<'a>,
+    pub literal: LiteralValue<'a>,
     line: u32,
 }
 
@@ -340,5 +340,31 @@ impl<'a> Token<'a> {
             literal,
             line,
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::Lox;
+
+    #[test]
+    fn test_scanner() {
+        let mut lox = Lox::new();
+        let source = "// aaa \n / b * + \n \"hm\" 5";
+        let scanner = Scanner::new(source, &mut lox.lox_error);
+        let tokens = scanner.scan_tokens();
+        assert_eq!(
+            tokens,
+            vec![
+                Token::new(TokenType::Slash, "/", LiteralValue::None, 2),
+                Token::new(TokenType::Identifier, "b", LiteralValue::None, 2),
+                Token::new(TokenType::Star, "*", LiteralValue::None, 2),
+                Token::new(TokenType::Plus, "+", LiteralValue::None, 2),
+                Token::new(TokenType::String, "\"hm\"", LiteralValue::String("hm"), 3),
+                Token::new(TokenType::Number, "5", LiteralValue::Number(5.0), 3),
+                Token::new(TokenType::Eof, "", LiteralValue::None, 3),
+            ]
+        );
     }
 }

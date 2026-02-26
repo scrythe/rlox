@@ -53,7 +53,7 @@ impl Lox {
         let scanner = scanner::Scanner::new(&source, &mut self.lox_error);
         let tokens = scanner.scan_tokens();
 
-        let mut parser = parser::Parser::new(tokens);
+        let parser = parser::Parser::new(tokens);
         let res = parser.parse();
         let ast_print_res = parser::AstPrinter::print(res);
         dbg!(ast_print_res);
@@ -86,16 +86,15 @@ impl LoxError {
 mod test {
     use super::*;
     #[test]
-    fn test() {
-        let source = r#"/ *
-// aaa *
-()
-" s "
-5.7
-"
-"#;
-        dbg!(source);
+    fn test_parser_and_ast_printer() {
         let mut lox = Lox::new();
-        lox.run(source.to_string());
+        let source = "2+5 / 4 * 2 + 4 == -3";
+        let scanner = scanner::Scanner::new(source, &mut lox.lox_error);
+        let tokens = scanner.scan_tokens();
+
+        let parser = parser::Parser::new(tokens);
+        let res = parser.parse();
+        let ast_print_res = parser::AstPrinter::print(res);
+        assert_eq!(ast_print_res, "(== (+ (+ 2 (* (/ 5 4) 2)) 4) (- 3))");
     }
 }

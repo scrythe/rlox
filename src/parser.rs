@@ -3,7 +3,7 @@ pub struct AstPrinter {}
 macro_rules! define_ast {
      ($expr_class:ident<$expr_lt:lifetime>;
      $($class_method_name:ident, $class_types:ident $(<$lt:lifetime>)? -> $($field_names:ident: $field_class_types:ty),+;)+) => {
-        #[derive(Debug)]
+        #[derive(Debug, PartialEq)]
         pub enum $expr_class<$expr_lt> {
             $($class_types(Box<$class_types $(<$lt>)? >)),+
         }
@@ -13,7 +13,7 @@ macro_rules! define_ast {
         )+
         }
         $(
-            #[derive(Debug)]
+            #[derive(Debug, PartialEq)]
             pub struct $class_types $(<$lt>)? {
                 $($field_names: $field_class_types,)+
             }
@@ -75,7 +75,7 @@ impl<'a> Parser<'a> {
         Parser { tokens, current }
     }
 
-    pub fn parse(&mut self) -> Expr<'a> {
+    pub fn parse(mut self) -> Expr<'a> {
         self.expression()
     }
 
@@ -159,13 +159,7 @@ impl<'a> Parser<'a> {
         }
 
         if self.match_token(&[TokenType::String, TokenType::Number]) {
-            let previous = self.previous();
-            if previous.token_type == TokenType::String {
-                return Expr::literal_expr(LiteralValue::String(previous.lexeme));
-            } else {
-                let number: f64 = previous.lexeme.parse().unwrap();
-                return Expr::literal_expr(LiteralValue::Number(number));
-            }
+            return Expr::literal_expr(self.previous().literal.clone());
         }
 
         if self.match_token(&[TokenType::LeftParen]) {
@@ -230,20 +224,26 @@ mod test {
 
     #[test]
     fn test_parser() {
-        // let concat_idents!(hm, hm) = 5;
-        // let test!(hm) = 5;
         let tokens = vec![
-            Token::new(TokenType::String, "hm", LiteralValue::String("hm"), 1),
+            Token::new(TokenType::String, "\"hm\"", LiteralValue::String("hm"), 1),
             Token::new(TokenType::BangEqual, "!=", LiteralValue::None, 1),
             Token::new(TokenType::Number, "5", LiteralValue::Number(5.0), 1),
             Token::new(TokenType::Eof, "", LiteralValue::None, 2),
         ];
-        let mut parser = Parser::new(tokens);
-        dbg!(parser.expression());
+        let parser = Parser::new(tokens);
+        let expression = parser.parse();
+        assert_eq!(
+            expression,
+            Expr::binary_expr(
+                Expr::literal_expr(LiteralValue::String("hm")),
+                Token::new(TokenType::BangEqual, "!=", LiteralValue::None, 1),
+                Expr::literal_expr(LiteralValue::Number(5.0))
+            )
+        );
     }
 
     #[test]
-    fn test_ast() {
+    fn test_ast_printer() {
         let token = Token::new(TokenType::Plus, "+", LiteralValue::None, 1);
         let expr = Expr::binary_expr(
             Expr::literal_expr(LiteralValue::Number(5.0)),
@@ -251,6 +251,6 @@ mod test {
             Expr::literal_expr(LiteralValue::Number(4.3)),
         );
         let out = AstPrinter::print(expr);
-        assert_eq!(out, "+ 5 4.3")
+        assert_eq!(out, "(+ 5 4.3)")
     }
 }
