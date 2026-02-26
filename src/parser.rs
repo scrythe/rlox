@@ -23,7 +23,7 @@ macro_rules! define_ast {
      ($expr_class:ident<$expr_lt:lifetime>;
      $($class_type_expr:ident, $class_types:ident $(<$lt:lifetime>)? -> $($field_names:ident: $field_class_types:ty),+;)+) => {
         #[derive(Debug)]
-        enum $expr_class<$expr_lt> {
+        pub enum $expr_class<$expr_lt> {
             $($class_types(Box<$class_types $(<$lt>)? >)),+
         }
         impl<$expr_lt> $expr_class<$expr_lt> {
@@ -59,14 +59,14 @@ impl AstPrinter {
         match expr {
             Expr::Binary(binary_expr) => {
                 format!(
-                    "{} {} {}",
+                    "({} {} {})",
                     binary_expr.operator.lexeme,
                     AstPrinter::print(binary_expr.left),
                     AstPrinter::print(binary_expr.right)
                 )
             }
             Expr::Grouping(group_expr) => {
-                format!("group {}", AstPrinter::print(group_expr.expression))
+                format!("(group {})", AstPrinter::print(group_expr.expression))
             }
             Expr::Literal(literal_expr) => match literal_expr.value {
                 LiteralValue::None => String::from(""),
@@ -76,7 +76,7 @@ impl AstPrinter {
                 LiteralValue::True => true.to_string(),
             },
             Expr::Unary(unary_expr) => format!(
-                "{} {}",
+                "({} {})",
                 unary_expr.operator.lexeme,
                 AstPrinter::print(unary_expr.right),
             ),
@@ -84,15 +84,19 @@ impl AstPrinter {
     }
 }
 
-struct Parser<'a> {
+pub struct Parser<'a> {
     tokens: Vec<Token<'a>>,
     current: usize,
 }
 
 impl<'a> Parser<'a> {
-    fn new(tokens: Vec<Token<'a>>) -> Parser<'a> {
+    pub fn new(tokens: Vec<Token<'a>>) -> Parser<'a> {
         let current = 0;
         Parser { tokens, current }
+    }
+
+    pub fn parse(&mut self) -> Expr<'a> {
+        self.expression()
     }
 
     fn expression(&mut self) -> Expr<'a> {
@@ -188,7 +192,8 @@ impl<'a> Parser<'a> {
             self.consume(&TokenType::RightParen, "Expect ')' after expression.");
             return Expr::grouping_expr(expr);
         }
-        Expr::literal_expr(LiteralValue::None)
+        // TODO:
+        panic!()
     }
 
     fn consume(&mut self, token_type: &TokenType, error_message: &str) -> &Token<'a> {

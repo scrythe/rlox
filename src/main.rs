@@ -52,13 +52,14 @@ impl Lox {
     fn run(&mut self, source: String) {
         let scanner = scanner::Scanner::new(&source, &mut self.lox_error);
         let tokens = scanner.scan_tokens();
-        // let ast_printer = parser::AstPrinter::print();
 
-        for token in tokens {
-            println!("{:?}", token);
-        }
+        let mut parser = parser::Parser::new(tokens);
+        let res = parser.parse();
+        let ast_print_res = parser::AstPrinter::print(res);
+        dbg!(ast_print_res);
+        // dbg!(res);
 
-        // TODO complete ig
+        // TODO: complete ig
     }
 }
 
