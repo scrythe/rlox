@@ -5,6 +5,8 @@ use std::{
 };
 
 use crate::scanner::{Token, TokenType};
+mod astprinter;
+mod interpreter;
 mod parser;
 mod scanner;
 fn main() {
@@ -62,8 +64,9 @@ impl Lox {
             return;
         }
 
-        let ast_print_res = parser::AstPrinter::print(expression);
-        dbg!(ast_print_res);
+        // let ast_print_res = astprinter::AstPrinter::print(expression);
+        let res = interpreter::Interpreter::interpret(expression);
+        dbg!(res);
 
         // TODO: complete ig
     }
@@ -108,7 +111,7 @@ mod test {
 
         let parser = parser::Parser::new(tokens, &mut lox.lox_error);
         let expression = parser.parse();
-        let ast_print_res = parser::AstPrinter::print(expression);
+        let ast_print_res = astprinter::AstPrinter::print(expression);
         assert_eq!(ast_print_res, "(== (+ (+ 2 (* (/ 5 4) 2)) 4) (- 3))");
     }
 }

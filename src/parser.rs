@@ -1,5 +1,3 @@
-pub struct AstPrinter {}
-
 macro_rules! define_ast {
      ($expr_class:ident<$expr_lt:lifetime>;
      $($class_method_name:ident, $class_types:ident $(<$lt:lifetime>)? -> $($field_names:ident: $field_class_types:ty),+;)+) => {
@@ -9,13 +7,13 @@ macro_rules! define_ast {
         }
         impl<$expr_lt> $expr_class<$expr_lt> {
         $(
-         fn $class_method_name ($($field_names: $field_class_types),+) -> $expr_class<$expr_lt> { $expr_class::$class_types(Box::new($class_types {$($field_names),*}))  }
+         pub fn $class_method_name ($($field_names: $field_class_types),+) -> $expr_class<$expr_lt> { $expr_class::$class_types(Box::new($class_types {$($field_names),*}))  }
         )+
         }
         $(
             #[derive(Debug, PartialEq)]
             pub struct $class_types $(<$lt>)? {
-                $($field_names: $field_class_types,)+
+                $(pub $field_names: $field_class_types,)+
             }
         )+
     };
@@ -34,36 +32,6 @@ define_ast!(
     literal_expr, Literal<'a> -> value: LiteralValue<'a> ;
     unary_expr, Unary<'a> -> operator:Token<'a> , right:Expr<'a> ;
 );
-
-impl AstPrinter {
-    pub fn print(expr: Expr) -> String {
-        match expr {
-            Expr::Binary(binary_expr) => {
-                format!(
-                    "({} {} {})",
-                    binary_expr.operator.lexeme,
-                    AstPrinter::print(binary_expr.left),
-                    AstPrinter::print(binary_expr.right)
-                )
-            }
-            Expr::Grouping(group_expr) => {
-                format!("(group {})", AstPrinter::print(group_expr.expression))
-            }
-            Expr::Literal(literal_expr) => match literal_expr.value {
-                LiteralValue::None => String::from(""),
-                LiteralValue::String(text) => text.to_string(),
-                LiteralValue::Number(val) => val.to_string(),
-                LiteralValue::False => false.to_string(),
-                LiteralValue::True => true.to_string(),
-            },
-            Expr::Unary(unary_expr) => format!(
-                "({} {})",
-                unary_expr.operator.lexeme,
-                AstPrinter::print(unary_expr.right),
-            ),
-        }
-    }
-}
 
 pub struct Parser<'a, 'l> {
     tokens: Vec<Token<'a>>,
@@ -250,17 +218,5 @@ mod test {
                 Expr::literal_expr(LiteralValue::Number(5.0))
             )
         );
-    }
-
-    #[test]
-    fn test_ast_printer() {
-        let token = Token::new(TokenType::Plus, "+", LiteralValue::None, 1);
-        let expr = Expr::binary_expr(
-            Expr::literal_expr(LiteralValue::Number(5.0)),
-            token,
-            Expr::literal_expr(LiteralValue::Number(4.3)),
-        );
-        let out = AstPrinter::print(expr);
-        assert_eq!(out, "(+ 5 4.3)")
     }
 }
