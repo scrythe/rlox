@@ -39,7 +39,7 @@ use super::scanner::Token;
 
 define_ast!(
     Expr<'a>;
-    Binary<'a> -> left:Expr<'a> , operator:Token<'a> , right:Expr<'a> ;
+    Binary<'a> -> left:Expr<'a> , operator: Token<'a> , right:Expr<'a> ;
     Grouping<'a> -> expression:Expr<'a> ;
     LiteralExpr<'a> -> value: Literal<'a> ;
     Unary<'a> -> operator:Token<'a> , right:Expr<'a> ;
@@ -90,13 +90,23 @@ impl<'a> Parser<'a> {
         Parser { tokens, current }
     }
 
-    fn expression(&self) -> Expr<'a> {
-        let expr = Parser::comparison();
+    fn expression(&mut self) -> Expr<'a> {
+        self.equality()
+    }
+
+    fn equality(&mut self) -> Expr<'a> {
+        let mut expr = self.comparison();
+        while self.match_token(&[TokenType::BangEqual, TokenType::EqualEqual]) {
+            let operator = self.previous().clone();
+            let right = self.comparison();
+            expr = Expr::Binary(Binary::boxed_new(expr, operator, right));
+        }
         expr
     }
 
-    fn comparison() -> Expr<'a> {
-        Expr::LiteralExpr(Box::new(LiteralExpr::new(Literal::None)))
+    fn comparison(&mut self) -> Expr<'a> {
+        // TODO:
+        self.primary()
     }
 
     fn primary(&mut self) -> Expr<'a> {
@@ -115,11 +125,9 @@ impl<'a> Parser<'a> {
             if previous.token_type == TokenType::String {
                 return Expr::LiteralExpr(LiteralExpr::boxed_new(Literal::String(previous.lexeme)));
             } else {
-                return Expr::LiteralExpr(LiteralExpr::boxed_new(Literal::None));
+                let number: f64 = previous.lexeme.parse().unwrap();
+                return Expr::LiteralExpr(LiteralExpr::boxed_new(Literal::Number(number)));
             }
-        }
-        if self.match_token(&[TokenType::Number]) {
-            return Expr::LiteralExpr(LiteralExpr::boxed_new(Literal::None));
         }
         Expr::LiteralExpr(LiteralExpr::boxed_new(Literal::None))
     }
@@ -171,10 +179,12 @@ mod test {
     fn test_parser() {
         let tokens = vec![
             Token::new(TokenType::String, "hm", Literal::String("hm"), 1),
+            Token::new(TokenType::BangEqual, "!=", Literal::None, 1),
             Token::new(TokenType::Number, "5", Literal::Number(5.0), 1),
+            Token::new(TokenType::Eof, "", Literal::None, 2),
         ];
         let mut parser = Parser::new(tokens);
-        dbg!(parser.primary());
+        dbg!(parser.expression());
     }
 
     #[test]

@@ -306,7 +306,7 @@ impl TokenType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Literal<'a> {
     None,
     String(&'a str),
@@ -315,7 +315,7 @@ pub enum Literal<'a> {
     True,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Token<'a> {
     pub token_type: TokenType,
     pub lexeme: &'a str,
