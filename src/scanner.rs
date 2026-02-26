@@ -35,7 +35,7 @@ impl<'a> Scanner<'a> {
             self.scan_token();
         }
         self.tokens
-            .push(Token::new(TokenType::Eof, b"", Literal::None, self.line));
+            .push(Token::new(TokenType::Eof, "", Literal::None, self.line));
         self.tokens
     }
 
@@ -159,6 +159,7 @@ impl<'a> Scanner<'a> {
 
     fn add_token_literal(&mut self, token_type: TokenType, literal: Literal<'a>) {
         let text = &self.source[self.start..self.current];
+        let text = str::from_utf8(text).unwrap();
         self.tokens
             .push(Token::new(token_type, text, literal, self.line));
     }
@@ -232,7 +233,7 @@ impl<'a> Scanner<'a> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     // Single-character tokens.
     LeftParen,
@@ -310,12 +311,14 @@ pub enum Literal<'a> {
     None,
     String(&'a str),
     Number(f64),
+    False,
+    True,
 }
 
 #[derive(Debug)]
 pub struct Token<'a> {
-    token_type: TokenType,
-    pub lexeme: &'a [u8],
+    pub token_type: TokenType,
+    pub lexeme: &'a str,
     literal: Literal<'a>,
     line: u32,
 }
@@ -323,7 +326,7 @@ pub struct Token<'a> {
 impl<'a> Token<'a> {
     pub fn new(
         token_type: TokenType,
-        lexeme: &'a [u8],
+        lexeme: &'a str,
         literal: Literal<'a>,
         line: u32,
     ) -> Token<'a> {
