@@ -3,6 +3,8 @@ use std::{
     io::{self, Write},
     process,
 };
+
+use crate::scanner::{Token, TokenType};
 mod parser;
 mod scanner;
 fn main() {
@@ -53,11 +55,15 @@ impl Lox {
         let scanner = scanner::Scanner::new(&source, &mut self.lox_error);
         let tokens = scanner.scan_tokens();
 
-        let parser = parser::Parser::new(tokens);
+        let parser = parser::Parser::new(tokens, &mut self.lox_error);
         let expression = parser.parse();
+
+        if self.lox_error.had_error {
+            return;
+        }
+
         let ast_print_res = parser::AstPrinter::print(expression);
         dbg!(ast_print_res);
-        // dbg!(res);
 
         // TODO: complete ig
     }
@@ -72,8 +78,16 @@ impl LoxError {
         LoxError { had_error }
     }
 
-    fn error(&mut self, line: u32, message: &str) {
+    fn error_line(&mut self, line: u32, message: &str) {
         self.report(line, "", message);
+    }
+
+    fn error_token(&mut self, token: &Token, message: &str) {
+        if token.token_type == TokenType::Eof {
+            self.report(token.line, " at end", message);
+        } else {
+            self.report(token.line, &format!(" at '{}'", token.lexeme), message);
+        }
     }
 
     fn report(&mut self, line: u32, err_where: &str, message: &str) {
@@ -92,7 +106,7 @@ mod test {
         let scanner = scanner::Scanner::new(source, &mut lox.lox_error);
         let tokens = scanner.scan_tokens();
 
-        let parser = parser::Parser::new(tokens);
+        let parser = parser::Parser::new(tokens, &mut lox.lox_error);
         let expression = parser.parse();
         let ast_print_res = parser::AstPrinter::print(expression);
         assert_eq!(ast_print_res, "(== (+ (+ 2 (* (/ 5 4) 2)) 4) (- 3))");

@@ -21,6 +21,7 @@ macro_rules! define_ast {
     };
 }
 
+use crate::LoxError;
 use crate::scanner::TokenType;
 
 use super::scanner::LiteralValue;
@@ -64,15 +65,20 @@ impl AstPrinter {
     }
 }
 
-pub struct Parser<'a> {
+pub struct Parser<'a, 'l> {
     tokens: Vec<Token<'a>>,
     current: usize,
+    lox_error: &'l mut LoxError,
 }
 
-impl<'a> Parser<'a> {
-    pub fn new(tokens: Vec<Token<'a>>) -> Parser<'a> {
+impl<'a, 'l> Parser<'a, 'l> {
+    pub fn new(tokens: Vec<Token<'a>>, lox_error: &'l mut LoxError) -> Parser<'a, 'l> {
         let current = 0;
-        Parser { tokens, current }
+        Parser {
+            tokens,
+            current,
+            lox_error,
+        }
     }
 
     pub fn parse(mut self) -> Expr<'a> {
@@ -82,11 +88,11 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn expression<'b>(&mut self) -> Result<Expr<'a>, &'b str> {
+    fn expression(&mut self) -> Result<Expr<'a>, ()> {
         self.equality()
     }
 
-    fn equality<'b>(&mut self) -> Result<Expr<'a>, &'b str> {
+    fn equality(&mut self) -> Result<Expr<'a>, ()> {
         // equality -> comparison ( ( "!=" | "==" ) comparison )*
         let mut expr = self.comparison()?;
         while self.match_token(&[TokenType::BangEqual, TokenType::EqualEqual]) {
@@ -97,7 +103,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn comparison<'b>(&mut self) -> Result<Expr<'a>, &'b str> {
+    fn comparison(&mut self) -> Result<Expr<'a>, ()> {
         // comparison -> term ( ( ">" | ">=" | "<" | "<=") term )*
         let mut expr = self.term()?;
         while self.match_token(&[
@@ -113,7 +119,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn term<'b>(&mut self) -> Result<Expr<'a>, &'b str> {
+    fn term(&mut self) -> Result<Expr<'a>, ()> {
         // term -> factor ( ( "-" | "+" ) factor )*
         let mut expr = self.factor()?;
         while self.match_token(&[TokenType::Minus, TokenType::Plus]) {
@@ -124,7 +130,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn factor<'b>(&mut self) -> Result<Expr<'a>, &'b str> {
+    fn factor(&mut self) -> Result<Expr<'a>, ()> {
         // factor -> unary ( ( "/" | "*" ) unary )*
         let mut expr = self.unary()?;
         while self.match_token(&[TokenType::Slash, TokenType::Star]) {
@@ -135,7 +141,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn unary<'b>(&mut self) -> Result<Expr<'a>, &'b str> {
+    fn unary(&mut self) -> Result<Expr<'a>, ()> {
         // my attempt: unary -> ( "!" | "-" )* primary
         // unary -> ( "!" | "-" ) unary
         //       | primary
@@ -148,7 +154,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn primary<'b>(&mut self) -> Result<Expr<'a>, &'b str> {
+    fn primary(&mut self) -> Result<Expr<'a>, ()> {
         // primary ->  Number | String | "true" | "false "| "nil" | "(" expression ")"
         if self.match_token(&[TokenType::False]) {
             Ok(Expr::literal_expr(LiteralValue::False))
@@ -160,19 +166,21 @@ impl<'a> Parser<'a> {
             Ok(Expr::literal_expr(self.previous().literal.clone()))
         } else if self.match_token(&[TokenType::LeftParen]) {
             let expr = self.expression()?;
-            self.consume(&TokenType::RightParen, "Expect ')' after expression.");
+            self.consume(&TokenType::RightParen, "Expect ')' after expression.")?;
             Ok(Expr::grouping_expr(expr))
         } else {
-            Err("wrong")
+            let token = self.peek().clone();
+            self.error(&token, "Expect expression")
         }
     }
 
-    fn consume(&mut self, token_type: &TokenType, error_message: &str) -> &Token<'a> {
+    fn consume(&mut self, token_type: &TokenType, message: &str) -> Result<&Token<'a>, ()> {
         if self.check(token_type) {
-            return self.advance();
+            Ok(self.advance())
+        } else {
+            let token = self.peek().clone();
+            self.error(&token, message)
         }
-        // TODO:
-        panic!("{}", error_message);
     }
 
     fn match_token(&mut self, token_types: &[TokenType]) -> bool {
@@ -211,12 +219,17 @@ impl<'a> Parser<'a> {
     fn previous(&self) -> &Token<'a> {
         &self.tokens[self.current - 1]
     }
+
+    fn error<T>(&mut self, token: &Token, message: &str) -> Result<T, ()> {
+        self.lox_error.error_token(token, message);
+        Err(())
+    }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::scanner::TokenType;
+    use crate::{Lox, scanner::TokenType};
 
     #[test]
     fn test_parser() {
@@ -226,7 +239,8 @@ mod test {
             Token::new(TokenType::Number, "5", LiteralValue::Number(5.0), 1),
             Token::new(TokenType::Eof, "", LiteralValue::None, 2),
         ];
-        let parser = Parser::new(tokens);
+        let mut lox = Lox::new();
+        let parser = Parser::new(tokens, &mut lox.lox_error);
         let expression = parser.parse();
         assert_eq!(
             expression,

@@ -1,18 +1,18 @@
 use crate::LoxError;
 use std::{collections::HashMap, str};
 
-pub struct Scanner<'a> {
+pub struct Scanner<'a, 'b> {
     source: &'a [u8],
     tokens: Vec<Token<'a>>,
     start: usize,
     current: usize,
     line: u32,
-    lox_error: &'a mut LoxError,
+    lox_error: &'b mut LoxError,
     token_keyword_map: HashMap<&'static str, TokenType>,
 }
 
-impl<'a> Scanner<'a> {
-    pub fn new(source: &'a str, lox_error: &'a mut LoxError) -> Scanner<'a> {
+impl<'a, 'b> Scanner<'a, 'b> {
+    pub fn new(source: &'a str, lox_error: &'b mut LoxError) -> Scanner<'a, 'b> {
         let source = source.as_bytes();
         let tokens = Vec::new();
         let start = 0;
@@ -114,7 +114,7 @@ impl<'a> Scanner<'a> {
             b'_' => self.identifier(),
 
             c => {
-                self.lox_error.error(
+                self.lox_error.error_line(
                     self.line,
                     &format!(
                         "Unexpected character {}",
@@ -181,7 +181,7 @@ impl<'a> Scanner<'a> {
         }
 
         if self.is_at_end() {
-            self.lox_error.error(self.line, "Unterminated string.");
+            self.lox_error.error_line(self.line, "Unterminated string.");
             return;
         }
         // for closing "
@@ -324,7 +324,7 @@ pub struct Token<'a> {
     pub token_type: TokenType,
     pub lexeme: &'a str,
     pub literal: LiteralValue<'a>,
-    line: u32,
+    pub line: u32,
 }
 
 impl<'a> Token<'a> {
