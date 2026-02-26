@@ -95,6 +95,7 @@ impl<'a> Parser<'a> {
     }
 
     fn equality(&mut self) -> Expr<'a> {
+        // equality -> comparison ( ( "!=" | "==" ) comparison )*
         let mut expr = self.comparison();
         while self.match_token(&[TokenType::BangEqual, TokenType::EqualEqual]) {
             let operator = self.previous().clone();
@@ -105,8 +106,54 @@ impl<'a> Parser<'a> {
     }
 
     fn comparison(&mut self) -> Expr<'a> {
-        // TODO:
-        self.primary()
+        // comparison -> term ( ( ">" | ">=" | "<" | "<=") term )*
+        let mut expr = self.term();
+        while self.match_token(&[
+            TokenType::Less,
+            TokenType::LessEqual,
+            TokenType::Greater,
+            TokenType::GreaterEqual,
+        ]) {
+            let operator = self.previous().clone();
+            let right = self.term();
+            expr = Expr::Binary(Binary::boxed_new(expr, operator, right));
+        }
+        expr
+    }
+
+    fn term(&mut self) -> Expr<'a> {
+        // term -> factor ( ( "-" | "+" ) factor )*
+        let mut expr = self.factor();
+        while self.match_token(&[TokenType::Minus, TokenType::Plus]) {
+            let operator = self.previous().clone();
+            let right = self.factor();
+            expr = Expr::Binary(Binary::boxed_new(expr, operator, right));
+        }
+        expr
+    }
+
+    fn factor(&mut self) -> Expr<'a> {
+        // factor -> unary ( ( "/" | "*" ) unary )*
+        let mut expr = self.unary();
+        while self.match_token(&[TokenType::Slash, TokenType::Star]) {
+            let operator = self.previous().clone();
+            let right = self.unary();
+            expr = Expr::Binary(Binary::boxed_new(expr, operator, right));
+        }
+        expr
+    }
+
+    fn unary(&mut self) -> Expr<'a> {
+        // my attempt: unary -> ( "!" | "-" )* primary
+        // unary -> ( "!" | "-" ) unary
+        //       | primary
+        if self.match_token(&[TokenType::Bang, TokenType::Minus]) {
+            let operator = self.previous().clone();
+            let right = self.unary();
+            Expr::Unary(Unary::boxed_new(operator, right))
+        } else {
+            self.primary()
+        }
     }
 
     fn primary(&mut self) -> Expr<'a> {
@@ -129,7 +176,21 @@ impl<'a> Parser<'a> {
                 return Expr::LiteralExpr(LiteralExpr::boxed_new(Literal::Number(number)));
             }
         }
+
+        if self.match_token(&[TokenType::LeftParen]) {
+            let expr = self.expression();
+            self.consume(&TokenType::RightParen, "Expect ')' after expression.");
+            return Expr::Grouping(Grouping::boxed_new(expr));
+        }
         Expr::LiteralExpr(LiteralExpr::boxed_new(Literal::None))
+    }
+
+    fn consume(&mut self, token_type: &TokenType, error_message: &str) -> &Token<'a> {
+        if self.check(token_type) {
+            return self.advance();
+        }
+        // TODO:
+        panic!("{}", error_message);
     }
 
     fn match_token(&mut self, token_types: &[TokenType]) -> bool {
@@ -142,7 +203,7 @@ impl<'a> Parser<'a> {
         false
     }
 
-    fn advance(&mut self) -> &Token<'_> {
+    fn advance(&mut self) -> &Token<'a> {
         if !self.is_at_end() {
             self.current += 1
         }
