@@ -318,15 +318,6 @@ pub enum LiteralValue {
     Bool(bool),
 }
 
-impl LiteralValue {
-    pub fn to_number(self) -> Option<f64> {
-        match self {
-            LiteralValue::Number(val) => Some(val),
-            _ => None,
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct Token<'a> {
     pub token_type: TokenType,

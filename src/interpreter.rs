@@ -1,40 +1,84 @@
 use crate::{
+    LoxError,
     parser::Expr,
-    scanner::{LiteralValue, TokenType},
+    scanner::{LiteralValue, Token, TokenType},
 };
 
-pub struct Interpreter {}
+struct RuntimeError<'a, 'b> {
+    token: Token<'a>,
+    message: &'b str,
+}
 
-impl Interpreter {
-    pub fn interpret(expr: Expr) -> LiteralValue {
+impl<'a, 'b> RuntimeError<'a, 'b> {
+    fn new(token: Token<'a>, message: &'b str) -> RuntimeError<'a, 'b> {
+        RuntimeError { token, message }
+    }
+}
+
+pub struct Interpreter<'a> {
+    lox_error: &'a mut LoxError,
+}
+
+impl<'a> Interpreter<'a> {
+    pub fn new(lox_error: &'a mut LoxError) -> Interpreter<'a> {
+        Interpreter { lox_error }
+    }
+
+    pub fn interpret(self, expr: Expr) {
+        match Interpreter::evaluate(expr) {
+            Ok(val) => println!("{}", Interpreter::stringify(val)),
+            Err(runtime_error) => self
+                .lox_error
+                .runtime_error(runtime_error.token, runtime_error.message),
+        }
+    }
+    fn stringify(evaluated: LiteralValue) -> String {
+        match evaluated {
+            LiteralValue::None => "nil".to_string(),
+            LiteralValue::Number(number) => number.to_string(),
+            LiteralValue::Bool(bool) => bool.to_string(),
+            LiteralValue::String(text) => text,
+        }
+    }
+    fn evaluate<'b, 'c>(expr: Expr<'b>) -> Result<LiteralValue, RuntimeError<'b, 'c>> {
         match expr {
-            Expr::Literal(val) => val.value,
-            Expr::Grouping(val) => Interpreter::interpret(val.expression),
+            Expr::Literal(val) => Ok(val.value),
+            Expr::Grouping(val) => Interpreter::evaluate(val.expression),
             Expr::Unary(val) => {
-                let right = Interpreter::interpret(val.right);
-                match val.operator.token_type {
-                    TokenType::Minus => LiteralValue::Number(-right.to_number().unwrap()),
+                let right = Interpreter::evaluate(val.right)?;
+                let literal = match val.operator.token_type {
+                    TokenType::Minus => {
+                        let val = Interpreter::convert_number_operator(val.operator, right)?;
+                        LiteralValue::Number(-val)
+                    }
                     TokenType::Bang => match right {
                         LiteralValue::Bool(_) => right,
                         _ => LiteralValue::Bool(false),
                     },
                     // Unreachable.
                     _ => LiteralValue::None,
-                }
+                };
+                Ok(literal)
             }
             Expr::Binary(val) => {
-                let left = Interpreter::interpret(val.left);
-                let right = Interpreter::interpret(val.right);
+                let left = Interpreter::evaluate(val.left)?;
+                let right = Interpreter::evaluate(val.right)?;
 
-                match val.operator.token_type {
+                let literal = match val.operator.token_type {
                     TokenType::Minus => {
-                        LiteralValue::Number(left.to_number().unwrap() - right.to_number().unwrap())
+                        let (left, right) =
+                            Interpreter::convert_number_operators(val.operator, left, right)?;
+                        LiteralValue::Number(left - right)
                     }
                     TokenType::Slash => {
-                        LiteralValue::Number(left.to_number().unwrap() / right.to_number().unwrap())
+                        let (left, right) =
+                            Interpreter::convert_number_operators(val.operator, left, right)?;
+                        LiteralValue::Number(left / right)
                     }
                     TokenType::Star => {
-                        LiteralValue::Number(left.to_number().unwrap() * right.to_number().unwrap())
+                        let (left, right) =
+                            Interpreter::convert_number_operators(val.operator, left, right)?;
+                        LiteralValue::Number(left * right)
                     }
                     TokenType::Plus => match (left, right) {
                         (LiteralValue::Number(left), LiteralValue::Number(right)) => {
@@ -43,29 +87,57 @@ impl Interpreter {
                         (LiteralValue::String(left), LiteralValue::String(right)) => {
                             LiteralValue::String(left + &right)
                         }
-                        _ => LiteralValue::None,
+                        _ => Err(RuntimeError::new(val.operator, "Operands must be numbers"))?,
                     },
 
                     TokenType::Greater => {
-                        LiteralValue::Bool(left.to_number().unwrap() > right.to_number().unwrap())
+                        let (left, right) =
+                            Interpreter::convert_number_operators(val.operator, left, right)?;
+                        LiteralValue::Bool(left > right)
                     }
 
                     TokenType::GreaterEqual => {
-                        LiteralValue::Bool(left.to_number().unwrap() >= right.to_number().unwrap())
+                        let (left, right) =
+                            Interpreter::convert_number_operators(val.operator, left, right)?;
+                        LiteralValue::Bool(left >= right)
                     }
                     TokenType::Less => {
-                        LiteralValue::Bool(left.to_number().unwrap() < right.to_number().unwrap())
+                        let (left, right) =
+                            Interpreter::convert_number_operators(val.operator, left, right)?;
+                        LiteralValue::Bool(left < right)
                     }
                     TokenType::LessEqual => {
-                        LiteralValue::Bool(left.to_number().unwrap() <= right.to_number().unwrap())
+                        let (left, right) =
+                            Interpreter::convert_number_operators(val.operator, left, right)?;
+                        LiteralValue::Bool(left <= right)
                     }
 
                     TokenType::BangEqual => LiteralValue::Bool(!Interpreter::is_equal(left, right)),
                     TokenType::EqualEqual => LiteralValue::Bool(Interpreter::is_equal(left, right)),
                     // Unreachable.
                     _ => LiteralValue::None,
-                }
+                };
+                Ok(literal)
             }
+        }
+    }
+    fn convert_number_operator<'b, 'c>(
+        operator: Token<'b>,
+        operand: LiteralValue,
+    ) -> Result<f64, RuntimeError<'b, 'c>> {
+        match operand {
+            LiteralValue::Number(operand) => Ok(operand),
+            _ => Err(RuntimeError::new(operator, "Operand must be a number")),
+        }
+    }
+    fn convert_number_operators<'b, 'c>(
+        operator: Token<'b>,
+        left: LiteralValue,
+        right: LiteralValue,
+    ) -> Result<(f64, f64), RuntimeError<'b, 'c>> {
+        match (left, right) {
+            (LiteralValue::Number(left), LiteralValue::Number(right)) => Ok((left, right)),
+            _ => Err(RuntimeError::new(operator, "Operands must be numbers")),
         }
     }
     fn is_equal(a: LiteralValue, b: LiteralValue) -> bool {

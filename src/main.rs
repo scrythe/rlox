@@ -37,6 +37,9 @@ impl Lox {
         if self.lox_error.had_error {
             process::exit(65);
         }
+        if self.lox_error.had_runtime_error {
+            process::exit(70);
+        }
     }
     fn run_prompt(&mut self) {
         loop {
@@ -65,8 +68,8 @@ impl Lox {
         }
 
         // let ast_print_res = astprinter::AstPrinter::print(expression);
-        let res = interpreter::Interpreter::interpret(expression);
-        dbg!(res);
+        let interpreter = interpreter::Interpreter::new(&mut self.lox_error);
+        interpreter.interpret(expression);
 
         // TODO: complete ig
     }
@@ -74,11 +77,16 @@ impl Lox {
 
 struct LoxError {
     had_error: bool,
+    had_runtime_error: bool,
 }
 impl LoxError {
     fn new() -> LoxError {
         let had_error = false;
-        LoxError { had_error }
+        let had_runtime_error = false;
+        LoxError {
+            had_error,
+            had_runtime_error,
+        }
     }
 
     fn error_line(&mut self, line: u32, message: &str) {
@@ -96,6 +104,11 @@ impl LoxError {
     fn report(&mut self, line: u32, err_where: &str, message: &str) {
         println!("[line {line}] Error {err_where}: {message}");
         self.had_error = true;
+    }
+
+    pub fn runtime_error(&mut self, token: Token, message: &str) {
+        println!("{message}\n[line {}]", token.line);
+        self.had_runtime_error = true;
     }
 }
 
