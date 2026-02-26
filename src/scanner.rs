@@ -161,7 +161,7 @@ impl<'a, 'b> Scanner<'a, 'b> {
         self.add_token_literal(token_type, LiteralValue::None);
     }
 
-    fn add_token_literal(&mut self, token_type: TokenType, literal: LiteralValue<'a>) {
+    fn add_token_literal(&mut self, token_type: TokenType, literal: LiteralValue) {
         let text = &self.source[self.start..self.current];
         let text = str::from_utf8(text).unwrap();
         self.tokens
@@ -188,7 +188,7 @@ impl<'a, 'b> Scanner<'a, 'b> {
         self.advance();
 
         let value = &self.source[self.start + 1..self.current - 1];
-        let value = str::from_utf8(value).unwrap();
+        let value = str::from_utf8(value).unwrap().to_string();
         self.add_token_literal(TokenType::String, LiteralValue::String(value));
     }
 
@@ -311,15 +311,14 @@ impl TokenType {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum LiteralValue<'a> {
+pub enum LiteralValue {
     None,
-    String(&'a str),
+    String(String),
     Number(f64),
-    False,
-    True,
+    Bool(bool),
 }
 
-impl<'a> LiteralValue<'a> {
+impl LiteralValue {
     pub fn to_number(self) -> Option<f64> {
         match self {
             LiteralValue::Number(val) => Some(val),
@@ -332,7 +331,7 @@ impl<'a> LiteralValue<'a> {
 pub struct Token<'a> {
     pub token_type: TokenType,
     pub lexeme: &'a str,
-    pub literal: LiteralValue<'a>,
+    pub literal: LiteralValue,
     pub line: u32,
 }
 
@@ -340,7 +339,7 @@ impl<'a> Token<'a> {
     pub fn new(
         token_type: TokenType,
         lexeme: &'a str,
-        literal: LiteralValue<'a>,
+        literal: LiteralValue,
         line: u32,
     ) -> Token<'a> {
         Token {
@@ -370,7 +369,12 @@ mod test {
                 Token::new(TokenType::Identifier, "b", LiteralValue::None, 2),
                 Token::new(TokenType::Star, "*", LiteralValue::None, 2),
                 Token::new(TokenType::Plus, "+", LiteralValue::None, 2),
-                Token::new(TokenType::String, "\"hm\"", LiteralValue::String("hm"), 3),
+                Token::new(
+                    TokenType::String,
+                    "\"hm\"",
+                    LiteralValue::String("hm".to_string()),
+                    3
+                ),
                 Token::new(TokenType::Number, "5", LiteralValue::Number(5.0), 3),
                 Token::new(TokenType::Eof, "", LiteralValue::None, 3),
             ]

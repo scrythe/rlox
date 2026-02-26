@@ -111,7 +111,7 @@ mod test {
 
         let parser = parser::Parser::new(tokens, &mut lox.lox_error);
         let expression = parser.parse();
-        let ast_print_res = astprinter::AstPrinter::print(expression);
+        let ast_print_res = astprinter::AstPrinter::_print(expression);
         assert_eq!(ast_print_res, "(== (+ (+ 2 (* (/ 5 4) 2)) 4) (- 3))");
     }
 }

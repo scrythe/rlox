@@ -15,8 +15,8 @@ impl Interpreter {
                 match val.operator.token_type {
                     TokenType::Minus => LiteralValue::Number(-right.to_number().unwrap()),
                     TokenType::Bang => match right {
-                        LiteralValue::True | LiteralValue::False => right,
-                        _ => LiteralValue::False,
+                        LiteralValue::Bool(_) => right,
+                        _ => LiteralValue::Bool(false),
                     },
                     // Unreachable.
                     _ => LiteralValue::None,
@@ -36,73 +36,45 @@ impl Interpreter {
                     TokenType::Star => {
                         LiteralValue::Number(left.to_number().unwrap() * right.to_number().unwrap())
                     }
-                    TokenType::Plus => {
-                        match (left, right) {
-                            (LiteralValue::Number(left), LiteralValue::Number(right)) => {
-                                LiteralValue::Number(left - right)
-                            }
-                            (LiteralValue::String(left), LiteralValue::String(right)) => {
-                                // LiteralValue::String(&format!("{left}{right}"))
-                                LiteralValue::String(left)
-                            }
-                            _ => LiteralValue::None,
+                    TokenType::Plus => match (left, right) {
+                        (LiteralValue::Number(left), LiteralValue::Number(right)) => {
+                            LiteralValue::Number(left + right)
                         }
-                    }
+                        (LiteralValue::String(left), LiteralValue::String(right)) => {
+                            LiteralValue::String(left + &right)
+                        }
+                        _ => LiteralValue::None,
+                    },
 
                     TokenType::Greater => {
-                        if left.to_number().unwrap() > right.to_number().unwrap() {
-                            LiteralValue::True
-                        } else {
-                            LiteralValue::False
-                        }
-                    }
-                    TokenType::GreaterEqual => {
-                        if left.to_number().unwrap() >= right.to_number().unwrap() {
-                            LiteralValue::True
-                        } else {
-                            LiteralValue::False
-                        }
-                    }
-                    TokenType::Less => {
-                        if left.to_number().unwrap() < right.to_number().unwrap() {
-                            LiteralValue::True
-                        } else {
-                            LiteralValue::False
-                        }
-                    }
-                    TokenType::LessEqual => {
-                        if left.to_number().unwrap() <= right.to_number().unwrap() {
-                            LiteralValue::True
-                        } else {
-                            LiteralValue::False
-                        }
+                        LiteralValue::Bool(left.to_number().unwrap() > right.to_number().unwrap())
                     }
 
-                    TokenType::BangEqual => Interpreter::negate(Interpreter::is_equal(left, right)),
-                    TokenType::EqualEqual => Interpreter::is_equal(left, right),
+                    TokenType::GreaterEqual => {
+                        LiteralValue::Bool(left.to_number().unwrap() >= right.to_number().unwrap())
+                    }
+                    TokenType::Less => {
+                        LiteralValue::Bool(left.to_number().unwrap() < right.to_number().unwrap())
+                    }
+                    TokenType::LessEqual => {
+                        LiteralValue::Bool(left.to_number().unwrap() <= right.to_number().unwrap())
+                    }
+
+                    TokenType::BangEqual => LiteralValue::Bool(!Interpreter::is_equal(left, right)),
+                    TokenType::EqualEqual => LiteralValue::Bool(Interpreter::is_equal(left, right)),
                     // Unreachable.
                     _ => LiteralValue::None,
                 }
             }
         }
     }
-    fn is_equal<'a>(a: LiteralValue<'a>, b: LiteralValue<'a>) -> LiteralValue<'a> {
+    fn is_equal(a: LiteralValue, b: LiteralValue) -> bool {
         if a == LiteralValue::None && b == LiteralValue::None {
-            LiteralValue::True
+            true
         } else if a == LiteralValue::None {
-            LiteralValue::False
-        } else if a == b {
-            LiteralValue::True
+            false
         } else {
-            LiteralValue::False
-        }
-    }
-
-    fn negate(a: LiteralValue) -> LiteralValue {
-        if a == LiteralValue::False {
-            LiteralValue::True
-        } else {
-            LiteralValue::False
+            a == b
         }
     }
 }

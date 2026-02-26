@@ -29,7 +29,7 @@ define_ast!(
     Expr<'a>;
     binary_expr, Binary<'a> -> left:Expr<'a> , operator: Token<'a> , right:Expr<'a> ;
     grouping_expr, Grouping<'a> -> expression:Expr<'a> ;
-    literal_expr, Literal<'a> -> value: LiteralValue<'a> ;
+    literal_expr, Literal -> value: LiteralValue ;
     unary_expr, Unary<'a> -> operator:Token<'a> , right:Expr<'a> ;
 );
 
@@ -125,9 +125,9 @@ impl<'a, 'l> Parser<'a, 'l> {
     fn primary(&mut self) -> Result<Expr<'a>, ()> {
         // primary ->  Number | String | "true" | "false "| "nil" | "(" expression ")"
         if self.match_token(&[TokenType::False]) {
-            Ok(Expr::literal_expr(LiteralValue::False))
+            Ok(Expr::literal_expr(LiteralValue::Bool(false)))
         } else if self.match_token(&[TokenType::True]) {
-            Ok(Expr::literal_expr(LiteralValue::True))
+            Ok(Expr::literal_expr(LiteralValue::Bool(true)))
         } else if self.match_token(&[TokenType::Nil]) {
             Ok(Expr::literal_expr(LiteralValue::None))
         } else if self.match_token(&[TokenType::String, TokenType::Number]) {
@@ -202,7 +202,12 @@ mod test {
     #[test]
     fn test_parser() {
         let tokens = vec![
-            Token::new(TokenType::String, "\"hm\"", LiteralValue::String("hm"), 1),
+            Token::new(
+                TokenType::String,
+                "\"hm\"",
+                LiteralValue::String("hm".to_string()),
+                1,
+            ),
             Token::new(TokenType::BangEqual, "!=", LiteralValue::None, 1),
             Token::new(TokenType::Number, "5", LiteralValue::Number(5.0), 1),
             Token::new(TokenType::Eof, "", LiteralValue::None, 2),
@@ -213,7 +218,7 @@ mod test {
         assert_eq!(
             expression,
             Expr::binary_expr(
-                Expr::literal_expr(LiteralValue::String("hm")),
+                Expr::literal_expr(LiteralValue::String("hm".to_string())),
                 Token::new(TokenType::BangEqual, "!=", LiteralValue::None, 1),
                 Expr::literal_expr(LiteralValue::Number(5.0))
             )
