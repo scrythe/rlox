@@ -21,10 +21,15 @@ macro_rules! define_single_ast {
 
 macro_rules! define_ast {
      ($expr_class:ident<$expr_lt:lifetime>;
-     $($class_types:ident $(<$lt:lifetime>)? -> $($field_names:ident: $field_class_types:ty),+;)+) => {
+     $($class_type_expr:ident, $class_types:ident $(<$lt:lifetime>)? -> $($field_names:ident: $field_class_types:ty),+;)+) => {
         #[derive(Debug)]
         enum $expr_class<$expr_lt> {
             $($class_types(Box<$class_types $(<$lt>)? >)),+
+        }
+        impl<$expr_lt> $expr_class<$expr_lt> {
+        $(
+         fn $class_type_expr ($($field_names: $field_class_types),+) -> $expr_class<$expr_lt> { $expr_class::$class_types(Box::new($class_types {$($field_names),*}))  }
+        )+
         }
         $(
             define_single_ast!($class_types $(<$lt>)? -> $($field_names: $field_class_types),+;);
@@ -34,15 +39,15 @@ macro_rules! define_ast {
 
 use crate::scanner::TokenType;
 
-use super::scanner::Literal;
+use super::scanner::LiteralValue;
 use super::scanner::Token;
 
 define_ast!(
     Expr<'a>;
-    Binary<'a> -> left:Expr<'a> , operator: Token<'a> , right:Expr<'a> ;
-    Grouping<'a> -> expression:Expr<'a> ;
-    LiteralExpr<'a> -> value: Literal<'a> ;
-    Unary<'a> -> operator:Token<'a> , right:Expr<'a> ;
+    binary_expr, Binary<'a> -> left:Expr<'a> , operator: Token<'a> , right:Expr<'a> ;
+    grouping_expr, Grouping<'a> -> expression:Expr<'a> ;
+    literal_expr, Literal<'a> -> value: LiteralValue<'a> ;
+    unary_expr, Unary<'a> -> operator:Token<'a> , right:Expr<'a> ;
 );
 
 impl AstPrinter {
@@ -63,12 +68,12 @@ impl AstPrinter {
             Expr::Grouping(group_expr) => {
                 format!("group {}", AstPrinter::print(group_expr.expression))
             }
-            Expr::LiteralExpr(literal_expr) => match literal_expr.value {
-                Literal::None => String::from(""),
-                Literal::String(text) => text.to_string(),
-                Literal::Number(val) => val.to_string(),
-                Literal::False => false.to_string(),
-                Literal::True => true.to_string(),
+            Expr::Literal(literal_expr) => match literal_expr.value {
+                LiteralValue::None => String::from(""),
+                LiteralValue::String(text) => text.to_string(),
+                LiteralValue::Number(val) => val.to_string(),
+                LiteralValue::False => false.to_string(),
+                LiteralValue::True => true.to_string(),
             },
             Expr::Unary(unary_expr) => format!(
                 "{} {}",
@@ -100,7 +105,7 @@ impl<'a> Parser<'a> {
         while self.match_token(&[TokenType::BangEqual, TokenType::EqualEqual]) {
             let operator = self.previous().clone();
             let right = self.comparison();
-            expr = Expr::Binary(Binary::boxed_new(expr, operator, right));
+            expr = Expr::binary_expr(expr, operator, right);
         }
         expr
     }
@@ -116,7 +121,8 @@ impl<'a> Parser<'a> {
         ]) {
             let operator = self.previous().clone();
             let right = self.term();
-            expr = Expr::Binary(Binary::boxed_new(expr, operator, right));
+            // expr = Expr::BinaryExpr(expr, operator, right);
+            expr = Expr::binary_expr(expr, operator, right);
         }
         expr
     }
@@ -127,7 +133,7 @@ impl<'a> Parser<'a> {
         while self.match_token(&[TokenType::Minus, TokenType::Plus]) {
             let operator = self.previous().clone();
             let right = self.factor();
-            expr = Expr::Binary(Binary::boxed_new(expr, operator, right));
+            expr = Expr::binary_expr(expr, operator, right);
         }
         expr
     }
@@ -138,7 +144,7 @@ impl<'a> Parser<'a> {
         while self.match_token(&[TokenType::Slash, TokenType::Star]) {
             let operator = self.previous().clone();
             let right = self.unary();
-            expr = Expr::Binary(Binary::boxed_new(expr, operator, right));
+            expr = Expr::binary_expr(expr, operator, right);
         }
         expr
     }
@@ -158,31 +164,31 @@ impl<'a> Parser<'a> {
 
     fn primary(&mut self) -> Expr<'a> {
         if self.match_token(&[TokenType::False]) {
-            return Expr::LiteralExpr(LiteralExpr::boxed_new(Literal::False));
+            return Expr::literal_expr(LiteralValue::False);
         }
         if self.match_token(&[TokenType::True]) {
-            return Expr::LiteralExpr(LiteralExpr::boxed_new(Literal::True));
+            return Expr::literal_expr(LiteralValue::True);
         }
         if self.match_token(&[TokenType::Nil]) {
-            return Expr::LiteralExpr(LiteralExpr::boxed_new(Literal::None));
+            return Expr::literal_expr(LiteralValue::None);
         }
 
         if self.match_token(&[TokenType::String, TokenType::Number]) {
             let previous = self.previous();
             if previous.token_type == TokenType::String {
-                return Expr::LiteralExpr(LiteralExpr::boxed_new(Literal::String(previous.lexeme)));
+                return Expr::literal_expr(LiteralValue::String(previous.lexeme));
             } else {
                 let number: f64 = previous.lexeme.parse().unwrap();
-                return Expr::LiteralExpr(LiteralExpr::boxed_new(Literal::Number(number)));
+                return Expr::literal_expr(LiteralValue::Number(number));
             }
         }
 
         if self.match_token(&[TokenType::LeftParen]) {
             let expr = self.expression();
             self.consume(&TokenType::RightParen, "Expect ')' after expression.");
-            return Expr::Grouping(Grouping::boxed_new(expr));
+            return Expr::grouping_expr(expr);
         }
-        Expr::LiteralExpr(LiteralExpr::boxed_new(Literal::None))
+        Expr::literal_expr(LiteralValue::None)
     }
 
     fn consume(&mut self, token_type: &TokenType, error_message: &str) -> &Token<'a> {
@@ -238,11 +244,13 @@ mod test {
 
     #[test]
     fn test_parser() {
+        // let concat_idents!(hm, hm) = 5;
+        // let test!(hm) = 5;
         let tokens = vec![
-            Token::new(TokenType::String, "hm", Literal::String("hm"), 1),
-            Token::new(TokenType::BangEqual, "!=", Literal::None, 1),
-            Token::new(TokenType::Number, "5", Literal::Number(5.0), 1),
-            Token::new(TokenType::Eof, "", Literal::None, 2),
+            Token::new(TokenType::String, "hm", LiteralValue::String("hm"), 1),
+            Token::new(TokenType::BangEqual, "!=", LiteralValue::None, 1),
+            Token::new(TokenType::Number, "5", LiteralValue::Number(5.0), 1),
+            Token::new(TokenType::Eof, "", LiteralValue::None, 2),
         ];
         let mut parser = Parser::new(tokens);
         dbg!(parser.expression());
@@ -250,11 +258,11 @@ mod test {
 
     #[test]
     fn test_ast() {
-        let token = Token::new(TokenType::Plus, "+", Literal::None, 1);
+        let token = Token::new(TokenType::Plus, "+", LiteralValue::None, 1);
         let expr = Binary::new(
-            Expr::LiteralExpr(Box::new(LiteralExpr::new(Literal::Number(5.0)))),
+            Expr::literal_expr(LiteralValue::Number(5.0)),
             token,
-            Expr::LiteralExpr(Box::new(LiteralExpr::new(Literal::Number(4.3)))),
+            Expr::literal_expr(LiteralValue::Number(4.3)),
         );
         let expr = Expr::Binary(Box::new(expr));
         let out = AstPrinter::print(expr);

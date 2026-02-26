@@ -34,8 +34,12 @@ impl<'a> Scanner<'a> {
             self.start = self.current;
             self.scan_token();
         }
-        self.tokens
-            .push(Token::new(TokenType::Eof, "", Literal::None, self.line));
+        self.tokens.push(Token::new(
+            TokenType::Eof,
+            "",
+            LiteralValue::None,
+            self.line,
+        ));
         self.tokens
     }
 
@@ -154,10 +158,10 @@ impl<'a> Scanner<'a> {
     }
 
     fn add_token(&mut self, token_type: TokenType) {
-        self.add_token_literal(token_type, Literal::None);
+        self.add_token_literal(token_type, LiteralValue::None);
     }
 
-    fn add_token_literal(&mut self, token_type: TokenType, literal: Literal<'a>) {
+    fn add_token_literal(&mut self, token_type: TokenType, literal: LiteralValue<'a>) {
         let text = &self.source[self.start..self.current];
         let text = str::from_utf8(text).unwrap();
         self.tokens
@@ -185,7 +189,7 @@ impl<'a> Scanner<'a> {
 
         let value = &self.source[self.start + 1..self.current - 1];
         let value = str::from_utf8(value).unwrap();
-        self.add_token_literal(TokenType::String, Literal::String(value));
+        self.add_token_literal(TokenType::String, LiteralValue::String(value));
     }
 
     fn is_digit(c: u8) -> bool {
@@ -211,7 +215,7 @@ impl<'a> Scanner<'a> {
         let number = &self.source[self.start..self.current];
         let number = str::from_utf8(number).unwrap();
         let number: f64 = number.parse().unwrap();
-        self.add_token_literal(TokenType::Number, Literal::Number(number));
+        self.add_token_literal(TokenType::Number, LiteralValue::Number(number));
     }
 
     fn is_alpha_numeric(c: u8) -> bool {
@@ -307,7 +311,7 @@ impl TokenType {
 }
 
 #[derive(Debug, Clone)]
-pub enum Literal<'a> {
+pub enum LiteralValue<'a> {
     None,
     String(&'a str),
     Number(f64),
@@ -319,7 +323,7 @@ pub enum Literal<'a> {
 pub struct Token<'a> {
     pub token_type: TokenType,
     pub lexeme: &'a str,
-    literal: Literal<'a>,
+    literal: LiteralValue<'a>,
     line: u32,
 }
 
@@ -327,7 +331,7 @@ impl<'a> Token<'a> {
     pub fn new(
         token_type: TokenType,
         lexeme: &'a str,
-        literal: Literal<'a>,
+        literal: LiteralValue<'a>,
         line: u32,
     ) -> Token<'a> {
         Token {
