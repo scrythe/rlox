@@ -54,8 +54,8 @@ impl Lox {
         let tokens = scanner.scan_tokens();
 
         let parser = parser::Parser::new(tokens);
-        let res = parser.parse();
-        let ast_print_res = parser::AstPrinter::print(res);
+        let expression = parser.parse();
+        let ast_print_res = parser::AstPrinter::print(expression);
         dbg!(ast_print_res);
         // dbg!(res);
 
@@ -93,8 +93,8 @@ mod test {
         let tokens = scanner.scan_tokens();
 
         let parser = parser::Parser::new(tokens);
-        let res = parser.parse();
-        let ast_print_res = parser::AstPrinter::print(res);
+        let expression = parser.parse();
+        let ast_print_res = parser::AstPrinter::print(expression);
         assert_eq!(ast_print_res, "(== (+ (+ 2 (* (/ 5 4) 2)) 4) (- 3))");
     }
 }
