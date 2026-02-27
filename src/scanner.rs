@@ -3,17 +3,17 @@ use std::{collections::HashMap, str};
 
 pub struct ScanError();
 
-pub struct Scanner<'a> {
-    source: &'a [u8],
-    tokens: Vec<Token<'a>>,
+pub struct Scanner<'source> {
+    source: &'source [u8],
+    tokens: Vec<Token<'source>>,
     start: usize,
     current: usize,
     line: u32,
     token_keyword_map: HashMap<&'static str, TokenType>,
 }
 
-impl<'a> Scanner<'a> {
-    pub fn new(source: &'a str) -> Scanner<'a> {
+impl<'source> Scanner<'source> {
+    pub fn new(source: &'source str) -> Scanner<'source> {
         let source = source.as_bytes();
         let tokens = Vec::new();
         let start = 0;
@@ -29,7 +29,7 @@ impl<'a> Scanner<'a> {
             token_keyword_map,
         }
     }
-    pub fn scan_tokens(mut self) -> (Vec<Token<'a>>, bool) {
+    pub fn scan_tokens(mut self) -> (Vec<Token<'source>>, bool) {
         let mut has_scan_error = false;
         while !self.is_at_end() {
             self.start = self.current;
@@ -319,20 +319,20 @@ pub enum LiteralValue {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Token<'a> {
+pub struct Token<'lexeme> {
     pub token_type: TokenType,
-    pub lexeme: &'a str,
+    pub lexeme: &'lexeme str,
     pub literal: LiteralValue,
     pub line: u32,
 }
 
-impl<'a> Token<'a> {
+impl<'lexeme> Token<'lexeme> {
     pub fn new(
         token_type: TokenType,
-        lexeme: &'a str,
+        lexeme: &'lexeme str,
         literal: LiteralValue,
         line: u32,
-    ) -> Token<'a> {
+    ) -> Token<'lexeme> {
         Token {
             token_type,
             lexeme,

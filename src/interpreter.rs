@@ -1,43 +1,47 @@
 use crate::{
-    LoxError,
     environment::{self, Environment},
     parser::{Expr, Stmt},
     scanner::{LiteralValue, Token, TokenType},
 };
 
-struct RuntimeError<'t, 'm> {
-    token: Token<'t>,
-    message: &'m str,
+pub struct RuntimeError<'token, 'err_message> {
+    pub token: Token<'token>,
+    pub message: &'err_message str,
 }
 
-impl<'a, 'b> RuntimeError<'a, 'b> {
-    fn new(token: Token<'a>, message: &'b str) -> RuntimeError<'a, 'b> {
+impl<'token, 'err_message> RuntimeError<'token, 'err_message> {
+    fn new(token: Token<'token>, message: &'err_message str) -> RuntimeError<'token, 'err_message> {
         RuntimeError { token, message }
     }
 }
 
-pub struct Interpreter<'e> {
-    environment: environment::Environment<'e>,
+pub struct Interpreter<'statements> {
+    environment: environment::Environment<'statements>,
 }
 
-impl<'e> Interpreter<'e> {
-    pub fn new() -> Interpreter<'e> {
+impl<'statements> Interpreter<'statements> {
+    pub fn new() -> Interpreter<'statements> {
         let environment = Environment::new();
         Interpreter { environment }
     }
 
-    pub fn interpret(mut self, statements: Vec<Stmt<'e>>) {
+    pub fn interpret(
+        mut self,
+        statements: Vec<Stmt<'statements>>,
+    ) -> Result<(), RuntimeError<'statements, 'static>> {
         for statement in statements {
-            self.execute(statement);
+            self.execute(statement)?
         }
+        Ok(())
     }
 
-    fn execute(&mut self, stmt: Stmt<'e>) {
+    fn execute<'err_message>(
+        &mut self,
+        stmt: Stmt<'statements>,
+    ) -> Result<(), RuntimeError<'statements, 'err_message>> {
         match stmt {
             Stmt::Var(expr) => {
-                let value = self
-                    .evaluate(expr.initializer)
-                    .unwrap_or(LiteralValue::None);
+                let value = self.evaluate(expr.initializer)?;
                 self.environment.define(expr.name.lexeme, value);
             }
             Stmt::Pritn(expr) => {
@@ -48,6 +52,7 @@ impl<'e> Interpreter<'e> {
                 self.evaluate(expr.expression).unwrap_or(LiteralValue::None);
             }
         }
+        Ok(())
     }
 
     fn stringify(evaluated: LiteralValue) -> String {
@@ -58,7 +63,10 @@ impl<'e> Interpreter<'e> {
             LiteralValue::String(text) => text,
         }
     }
-    fn evaluate<'b, 'c>(&mut self, expr: Expr<'b>) -> Result<LiteralValue, RuntimeError<'b, 'c>> {
+    fn evaluate<'token, 'err_message>(
+        &mut self,
+        expr: Expr<'token>,
+    ) -> Result<LiteralValue, RuntimeError<'token, 'err_message>> {
         match expr {
             Expr::Variable(name) => Ok(self.environment.get(name.name).clone()),
             Expr::Literal(val) => Ok(val.value),
@@ -140,20 +148,20 @@ impl<'e> Interpreter<'e> {
             }
         }
     }
-    fn convert_number_operator<'b, 'c>(
-        operator: Token<'b>,
+    fn convert_number_operator<'token, 'err_message>(
+        operator: Token<'token>,
         operand: LiteralValue,
-    ) -> Result<f64, RuntimeError<'b, 'c>> {
+    ) -> Result<f64, RuntimeError<'token, 'err_message>> {
         match operand {
             LiteralValue::Number(operand) => Ok(operand),
             _ => Err(RuntimeError::new(operator, "Operand must be a number")),
         }
     }
-    fn convert_number_operators<'b, 'c>(
-        operator: Token<'b>,
+    fn convert_number_operators<'token, 'err_message>(
+        operator: Token<'token>,
         left: LiteralValue,
         right: LiteralValue,
-    ) -> Result<(f64, f64), RuntimeError<'b, 'c>> {
+    ) -> Result<(f64, f64), RuntimeError<'token, 'err_message>> {
         match (left, right) {
             (LiteralValue::Number(left), LiteralValue::Number(right)) => Ok((left, right)),
             _ => Err(RuntimeError::new(operator, "Operands must be numbers")),

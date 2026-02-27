@@ -63,7 +63,11 @@ impl Lox {
 
         // let ast_print_res = astprinter::AstPrinter::print(expression);
         let interpreter = interpreter::Interpreter::new();
-        interpreter.interpret(statements);
+        let res = interpreter.interpret(statements);
+        if let Err(err) = res {
+            LoxError::runtime_error(err.token, err.message);
+            return Err(LoxError::RuntimeError);
+        }
 
         // TODO: complete ig
         Ok(())

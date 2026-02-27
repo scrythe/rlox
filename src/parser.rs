@@ -23,31 +23,31 @@ macro_rules! define_ast {
 }
 
 define_ast!(
-    Expr<'a>;
-    binary_expr, Binary<'a> -> left: Expr<'a> , operator: Token<'a> , right: Expr<'a> ;
-    grouping_expr, Grouping<'a> -> expression: Expr<'a> ;
+    Expr<'source>;
+    binary_expr, Binary<'source> -> left: Expr<'source> , operator: Token<'source> , right: Expr<'source> ;
+    grouping_expr, Grouping<'source> -> expression: Expr<'source> ;
     literal_expr, Literal -> value: LiteralValue ;
-    unary_expr, Unary<'a> -> operator: Token<'a> , right: Expr<'a> ;
-    variable_expr, Variable<'a> -> name: Token<'a> ;
+    unary_expr, Unary<'source> -> operator: Token<'source> , right: Expr<'source> ;
+    variable_expr, Variable<'source> -> name: Token<'source> ;
 );
 define_ast!(
-    Stmt<'a>;
-    expression_stmt, Expression<'a> -> expression: Expr<'a>;
-    print_stmt, Pritn<'a> -> expression: Expr<'a>;
-    var_stmt, Var<'a> -> name: Token<'a>, initializer: Expr<'a>;
+    Stmt<'source>;
+    expression_stmt, Expression<'source> -> expression: Expr<'source>;
+    print_stmt, Pritn<'source> -> expression: Expr<'source>;
+    var_stmt, Var<'source> -> name: Token<'source>, initializer: Expr<'source>;
 );
 
 #[derive(Debug)]
 struct ParseError();
 
-pub struct Parser<'t> {
-    tokens: Vec<Token<'t>>,
+pub struct Parser<'tokens> {
+    tokens: Vec<Token<'tokens>>,
     current: usize,
     has_error: bool,
 }
 
-impl<'a> Parser<'a> {
-    pub fn new(tokens: Vec<Token<'a>>) -> Parser<'a> {
+impl<'tokens> Parser<'tokens> {
+    pub fn new(tokens: Vec<Token<'tokens>>) -> Parser<'tokens> {
         let current = 0;
         let has_error = false;
         Parser {
@@ -57,7 +57,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(mut self) -> (Vec<Stmt<'a>>, bool) {
+    pub fn parse(mut self) -> (Vec<Stmt<'tokens>>, bool) {
         // program -> statement* EOF
         let mut statements: Vec<Stmt> = Vec::new();
         while !self.is_at_end() {
@@ -75,7 +75,7 @@ impl<'a> Parser<'a> {
 
     fn synchonize(&mut self) {}
 
-    fn declaration(&mut self) -> Result<Stmt<'a>, ParseError> {
+    fn declaration(&mut self) -> Result<Stmt<'tokens>, ParseError> {
         if self.match_token(&[TokenType::Var]) {
             self.var_declaration()
         } else {
@@ -83,7 +83,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn var_declaration(&mut self) -> Result<Stmt<'a>, ParseError> {
+    fn var_declaration(&mut self) -> Result<Stmt<'tokens>, ParseError> {
         // varDecl -> "var" IDENTIFIER ( "=" expression )? ";"
         let name = self
             .consume(&TokenType::Identifier, "Expect variable name.")?
@@ -102,7 +102,7 @@ impl<'a> Parser<'a> {
         Ok(Stmt::var_stmt(name, initializer))
     }
 
-    fn statement(&mut self) -> Result<Stmt<'a>, ParseError> {
+    fn statement(&mut self) -> Result<Stmt<'tokens>, ParseError> {
         // statement -> exprStmt | printStmt
         if self.match_token(&[TokenType::Print]) {
             self.print_statement()
@@ -111,7 +111,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn print_statement(&mut self) -> Result<Stmt<'a>, ParseError> {
+    fn print_statement(&mut self) -> Result<Stmt<'tokens>, ParseError> {
         // statement -> "print" expression ";"
         // print already matched from fn statement
         let value = self.expression()?;
@@ -119,18 +119,18 @@ impl<'a> Parser<'a> {
         Ok(Stmt::print_stmt(value))
     }
 
-    fn expression_statement(&mut self) -> Result<Stmt<'a>, ParseError> {
+    fn expression_statement(&mut self) -> Result<Stmt<'tokens>, ParseError> {
         // statement -> expression ";"
         let expr = self.expression()?;
         self.consume(&TokenType::Semicolon, "Expect ';' after expression.")?;
         Ok(Stmt::expression_stmt(expr))
     }
 
-    fn expression(&mut self) -> Result<Expr<'a>, ParseError> {
+    fn expression(&mut self) -> Result<Expr<'tokens>, ParseError> {
         self.equality()
     }
 
-    fn equality(&mut self) -> Result<Expr<'a>, ParseError> {
+    fn equality(&mut self) -> Result<Expr<'tokens>, ParseError> {
         // equality -> comparison ( ( "!=" | "==" ) comparison )*
         let mut expr = self.comparison()?;
         while self.match_token(&[TokenType::BangEqual, TokenType::EqualEqual]) {
@@ -141,7 +141,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn comparison(&mut self) -> Result<Expr<'a>, ParseError> {
+    fn comparison(&mut self) -> Result<Expr<'tokens>, ParseError> {
         // comparison -> term ( ( ">" | ">=" | "<" | "<=") term )*
         let mut expr = self.term()?;
         while self.match_token(&[
@@ -157,7 +157,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn term(&mut self) -> Result<Expr<'a>, ParseError> {
+    fn term(&mut self) -> Result<Expr<'tokens>, ParseError> {
         // term -> factor ( ( "-" | "+" ) factor )*
         let mut expr = self.factor()?;
         while self.match_token(&[TokenType::Minus, TokenType::Plus]) {
@@ -168,7 +168,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn factor(&mut self) -> Result<Expr<'a>, ParseError> {
+    fn factor(&mut self) -> Result<Expr<'tokens>, ParseError> {
         // factor -> unary ( ( "/" | "*" ) unary )*
         let mut expr = self.unary()?;
         while self.match_token(&[TokenType::Slash, TokenType::Star]) {
@@ -179,7 +179,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn unary(&mut self) -> Result<Expr<'a>, ParseError> {
+    fn unary(&mut self) -> Result<Expr<'tokens>, ParseError> {
         // my attempt: unary -> ( "!" | "-" )* primary
         // unary -> ( "!" | "-" ) unary
         //       | primary
@@ -192,7 +192,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn primary(&mut self) -> Result<Expr<'a>, ParseError> {
+    fn primary(&mut self) -> Result<Expr<'tokens>, ParseError> {
         // primary ->  Number | String | "true" | "false "| "nil" | "(" expression ")" | IDENTIFIER
         if self.match_token(&[TokenType::False]) {
             Ok(Expr::literal_expr(LiteralValue::Bool(false)))
@@ -214,7 +214,11 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn consume(&mut self, token_type: &TokenType, message: &str) -> Result<&Token<'a>, ParseError> {
+    fn consume(
+        &mut self,
+        token_type: &TokenType,
+        message: &str,
+    ) -> Result<&Token<'tokens>, ParseError> {
         if self.check(token_type) {
             Ok(self.advance())
         } else {
@@ -233,7 +237,7 @@ impl<'a> Parser<'a> {
         false
     }
 
-    fn advance(&mut self) -> &Token<'a> {
+    fn advance(&mut self) -> &Token<'tokens> {
         if !self.is_at_end() {
             self.current += 1
         }
@@ -252,11 +256,11 @@ impl<'a> Parser<'a> {
         self.peek().token_type == TokenType::Eof
     }
 
-    fn peek(&self) -> &Token<'a> {
+    fn peek(&self) -> &Token<'tokens> {
         &self.tokens[self.current]
     }
 
-    fn previous(&self) -> &Token<'a> {
+    fn previous(&self) -> &Token<'tokens> {
         &self.tokens[self.current - 1]
     }
 
