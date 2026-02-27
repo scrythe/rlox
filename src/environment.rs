@@ -1,22 +1,29 @@
 use std::collections::HashMap;
 
-use crate::scanner::{LiteralValue, Token};
+use crate::{
+    interpreter::RuntimeError,
+    scanner::{LiteralValue, Token},
+};
 
-pub struct Environment<'var_names> {
-    values: HashMap<&'var_names str, LiteralValue>,
+pub struct Environment {
+    values: HashMap<String, LiteralValue>,
 }
 
-impl<'var_names> Environment<'var_names> {
-    pub fn new() -> Environment<'var_names> {
+impl Environment {
+    pub fn new() -> Environment {
         let values = HashMap::new();
         Environment { values }
     }
 
-    pub fn define(&mut self, name: &'var_names str, value: LiteralValue) {
-        self.values.insert(name, value);
+    pub fn define(&mut self, name: &str, value: LiteralValue) {
+        self.values.insert(name.to_string(), value);
     }
 
-    pub fn get(&self, name: Token) -> &LiteralValue {
-        self.values.get(name.lexeme).unwrap()
+    pub fn get<'token>(&self, name: Token<'token>) -> Result<&LiteralValue, RuntimeError<'token>> {
+        let var_name = name.lexeme;
+        self.values.get(var_name).ok_or(RuntimeError::new(
+            name,
+            format!("Undefined variable '{}'", var_name),
+        ))
     }
 }

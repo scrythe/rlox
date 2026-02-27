@@ -1,20 +1,20 @@
 use crate::{parser::Expr, scanner::LiteralValue};
 
-pub struct AstPrinter {}
+pub struct _AstPrinter {}
 
-impl AstPrinter {
+impl _AstPrinter {
     pub fn _print(expr: Expr) -> String {
         match expr {
             Expr::Binary(binary_expr) => {
                 format!(
                     "({} {} {})",
                     binary_expr.operator.lexeme,
-                    AstPrinter::_print(binary_expr.left),
-                    AstPrinter::_print(binary_expr.right)
+                    _AstPrinter::_print(binary_expr.left),
+                    _AstPrinter::_print(binary_expr.right)
                 )
             }
             Expr::Grouping(group_expr) => {
-                format!("(group {})", AstPrinter::_print(group_expr.expression))
+                format!("(group {})", _AstPrinter::_print(group_expr.expression))
             }
             Expr::Literal(literal_expr) => match literal_expr.value {
                 LiteralValue::None => String::from(""),
@@ -25,7 +25,7 @@ impl AstPrinter {
             Expr::Unary(unary_expr) => format!(
                 "({} {})",
                 unary_expr.operator.lexeme,
-                AstPrinter::_print(unary_expr.right),
+                _AstPrinter::_print(unary_expr.right),
             ),
             Expr::Variable(var_expr) => var_expr.name.lexeme.to_string(),
         }
@@ -45,7 +45,7 @@ mod test {
             token,
             Expr::literal_expr(LiteralValue::Number(4.3)),
         );
-        let out = AstPrinter::_print(expr);
+        let out = _AstPrinter::_print(expr);
         assert_eq!(out, "(+ 5 4.3)")
     }
 }

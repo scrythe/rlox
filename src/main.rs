@@ -13,22 +13,30 @@ mod scanner;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
+    let lox = Lox::new();
     if args.len() > 2 {
         println!("Usage: jlox [script]");
         process::exit(64);
     } else if args.len() == 2 {
-        Lox::run_file(&args[1]);
+        lox.run_file(&args[1]);
     } else {
-        Lox::run_prompt();
+        lox.run_prompt();
     }
 }
 
-struct Lox {}
+struct Lox {
+    interpreter: interpreter::Interpreter,
+}
 
 impl Lox {
-    fn run_file(file_path: &str) {
+    fn new() -> Lox {
+        let interpreter = interpreter::Interpreter::new();
+        Lox { interpreter }
+    }
+
+    fn run_file(mut self, file_path: &str) {
         let source = fs::read_to_string(file_path).unwrap();
-        let lox_error = Lox::run(source);
+        let lox_error = self.run(source);
         if let Err(lox_error) = lox_error {
             match lox_error {
                 LoxError::CompileError => process::exit(65),
@@ -36,7 +44,7 @@ impl Lox {
             }
         }
     }
-    fn run_prompt() {
+    fn run_prompt(mut self) {
         loop {
             print!("> ");
             io::stdout().flush().unwrap();
@@ -47,10 +55,10 @@ impl Lox {
             if line.is_empty() {
                 break;
             }
-            let _ = Lox::run(line);
+            let _ = self.run(line);
         }
     }
-    fn run(source: String) -> Result<(), LoxError> {
+    fn run(&mut self, source: String) -> Result<(), LoxError> {
         let scanner = scanner::Scanner::new(&source);
         let (tokens, has_scan_error) = scanner.scan_tokens();
 
@@ -62,8 +70,7 @@ impl Lox {
         }
 
         // let ast_print_res = astprinter::AstPrinter::print(expression);
-        let interpreter = interpreter::Interpreter::new();
-        let res = interpreter.interpret(statements);
+        let res = self.interpreter.interpret(statements);
         if let Err(err) = res {
             LoxError::runtime_error(err.token, err.message);
             return Err(LoxError::RuntimeError);
@@ -95,7 +102,7 @@ impl LoxError {
         println!("[line {line}] Error {err_where}: {message}");
     }
 
-    pub fn runtime_error(token: Token, message: &str) {
+    pub fn runtime_error(token: Token, message: String) {
         println!("{message}\n[line {}]", token.line);
     }
 }
@@ -119,7 +126,7 @@ mod test {
         let (mut statements, _) = parser.parse();
         match statements.remove(0) {
             Stmt::Expression(expr) => {
-                let ast_print_res = astprinter::AstPrinter::_print(expr.expression);
+                let ast_print_res = astprinter::_AstPrinter::_print(expr.expression);
                 assert_eq!(ast_print_res, "(== (+ (+ 2 (* (/ 5 4) 2)) 4) (- 3))");
             }
             _ => panic!("error"),
