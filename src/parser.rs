@@ -24,11 +24,12 @@ macro_rules! define_ast {
 
 define_ast!(
     Expr<'source>;
-    binary_expr, Binary<'source> -> left: Expr<'source> , operator: Token<'source> , right: Expr<'source> ;
-    grouping_expr, Grouping<'source> -> expression: Expr<'source> ;
-    literal_expr, Literal -> value: LiteralValue ;
-    unary_expr, Unary<'source> -> operator: Token<'source> , right: Expr<'source> ;
-    variable_expr, Variable<'source> -> name: Token<'source> ;
+    assign_expr, Assign<'source> -> name: Token<'source> , value: Expr<'source>;
+    binary_expr, Binary<'source> -> left: Expr<'source> , operator: Token<'source> , right: Expr<'source>;
+    grouping_expr, Grouping<'source> -> expression: Expr<'source>;
+    literal_expr, Literal -> value: LiteralValue;
+    unary_expr, Unary<'source> -> operator: Token<'source> , right: Expr<'source>;
+    variable_expr, Variable<'source> -> name: Token<'source>;
 );
 define_ast!(
     Stmt<'source>;
@@ -38,7 +39,7 @@ define_ast!(
 );
 
 #[derive(Debug)]
-struct ParseError();
+struct LoxParseError();
 
 pub struct Parser<'tokens> {
     tokens: Vec<Token<'tokens>>,
@@ -94,7 +95,7 @@ impl<'tokens> Parser<'tokens> {
         }
     }
 
-    fn declaration(&mut self) -> Result<Stmt<'tokens>, ParseError> {
+    fn declaration(&mut self) -> Result<Stmt<'tokens>, LoxParseError> {
         if self.match_token(&[TokenType::Var]) {
             self.var_declaration()
         } else {
@@ -102,7 +103,7 @@ impl<'tokens> Parser<'tokens> {
         }
     }
 
-    fn var_declaration(&mut self) -> Result<Stmt<'tokens>, ParseError> {
+    fn var_declaration(&mut self) -> Result<Stmt<'tokens>, LoxParseError> {
         // varDecl -> "var" IDENTIFIER ( "=" expression )? ";"
         let name = self
             .consume(&TokenType::Identifier, "Expect variable name.")?
@@ -121,7 +122,7 @@ impl<'tokens> Parser<'tokens> {
         Ok(Stmt::var_stmt(name, initializer))
     }
 
-    fn statement(&mut self) -> Result<Stmt<'tokens>, ParseError> {
+    fn statement(&mut self) -> Result<Stmt<'tokens>, LoxParseError> {
         // statement -> exprStmt | printStmt
         if self.match_token(&[TokenType::Print]) {
             self.print_statement()
@@ -130,7 +131,7 @@ impl<'tokens> Parser<'tokens> {
         }
     }
 
-    fn print_statement(&mut self) -> Result<Stmt<'tokens>, ParseError> {
+    fn print_statement(&mut self) -> Result<Stmt<'tokens>, LoxParseError> {
         // statement -> "print" expression ";"
         // print already matched from fn statement
         let value = self.expression()?;
@@ -138,18 +139,36 @@ impl<'tokens> Parser<'tokens> {
         Ok(Stmt::print_stmt(value))
     }
 
-    fn expression_statement(&mut self) -> Result<Stmt<'tokens>, ParseError> {
+    fn expression_statement(&mut self) -> Result<Stmt<'tokens>, LoxParseError> {
         // statement -> expression ";"
         let expr = self.expression()?;
         self.consume(&TokenType::Semicolon, "Expect ';' after expression.")?;
         Ok(Stmt::expression_stmt(expr))
     }
 
-    fn expression(&mut self) -> Result<Expr<'tokens>, ParseError> {
-        self.equality()
+    fn expression(&mut self) -> Result<Expr<'tokens>, LoxParseError> {
+        // expression -> assignment
+        self.assignment()
     }
 
-    fn equality(&mut self) -> Result<Expr<'tokens>, ParseError> {
+    fn assignment(&mut self) -> Result<Expr<'tokens>, LoxParseError> {
+        // assigntment -> IDENTIFIER "=" assignment
+        //              | equality
+        let expr = self.equality()?;
+        if self.match_token(&[TokenType::Equal]) {
+            let equals_token = self.previous().clone();
+            let value = self.assignment()?;
+
+            if let Expr::Variable(var) = expr {
+                return Ok(Expr::assign_expr(var.name, value));
+            }
+
+            self.error(&equals_token, "Invalid assignment target.");
+        }
+        Ok(expr)
+    }
+
+    fn equality(&mut self) -> Result<Expr<'tokens>, LoxParseError> {
         // equality -> comparison ( ( "!=" | "==" ) comparison )*
         let mut expr = self.comparison()?;
         while self.match_token(&[TokenType::BangEqual, TokenType::EqualEqual]) {
@@ -160,7 +179,7 @@ impl<'tokens> Parser<'tokens> {
         Ok(expr)
     }
 
-    fn comparison(&mut self) -> Result<Expr<'tokens>, ParseError> {
+    fn comparison(&mut self) -> Result<Expr<'tokens>, LoxParseError> {
         // comparison -> term ( ( ">" | ">=" | "<" | "<=") term )*
         let mut expr = self.term()?;
         while self.match_token(&[
@@ -176,7 +195,7 @@ impl<'tokens> Parser<'tokens> {
         Ok(expr)
     }
 
-    fn term(&mut self) -> Result<Expr<'tokens>, ParseError> {
+    fn term(&mut self) -> Result<Expr<'tokens>, LoxParseError> {
         // term -> factor ( ( "-" | "+" ) factor )*
         let mut expr = self.factor()?;
         while self.match_token(&[TokenType::Minus, TokenType::Plus]) {
@@ -187,7 +206,7 @@ impl<'tokens> Parser<'tokens> {
         Ok(expr)
     }
 
-    fn factor(&mut self) -> Result<Expr<'tokens>, ParseError> {
+    fn factor(&mut self) -> Result<Expr<'tokens>, LoxParseError> {
         // factor -> unary ( ( "/" | "*" ) unary )*
         let mut expr = self.unary()?;
         while self.match_token(&[TokenType::Slash, TokenType::Star]) {
@@ -198,7 +217,7 @@ impl<'tokens> Parser<'tokens> {
         Ok(expr)
     }
 
-    fn unary(&mut self) -> Result<Expr<'tokens>, ParseError> {
+    fn unary(&mut self) -> Result<Expr<'tokens>, LoxParseError> {
         // my attempt: unary -> ( "!" | "-" )* primary
         // unary -> ( "!" | "-" ) unary
         //       | primary
@@ -211,7 +230,7 @@ impl<'tokens> Parser<'tokens> {
         }
     }
 
-    fn primary(&mut self) -> Result<Expr<'tokens>, ParseError> {
+    fn primary(&mut self) -> Result<Expr<'tokens>, LoxParseError> {
         // primary ->  Number | String | "true" | "false "| "nil" | "(" expression ")" | IDENTIFIER
         if self.match_token(&[TokenType::False]) {
             Ok(Expr::literal_expr(LiteralValue::Bool(false)))
@@ -237,7 +256,7 @@ impl<'tokens> Parser<'tokens> {
         &mut self,
         token_type: &TokenType,
         message: &str,
-    ) -> Result<&Token<'tokens>, ParseError> {
+    ) -> Result<&Token<'tokens>, LoxParseError> {
         if self.check(token_type) {
             Ok(self.advance())
         } else {
@@ -283,9 +302,9 @@ impl<'tokens> Parser<'tokens> {
         &self.tokens[self.current - 1]
     }
 
-    fn error(&mut self, token: &Token, message: &str) -> ParseError {
+    fn error(&mut self, token: &Token, message: &str) -> LoxParseError {
         LoxError::error_token(token, message);
-        ParseError()
+        LoxParseError()
     }
 }
 

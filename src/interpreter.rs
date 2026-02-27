@@ -149,6 +149,11 @@ impl Interpreter {
                 };
                 Ok(literal)
             }
+            Expr::Assign(assign_expr) => {
+                let value = self.evaluate(assign_expr.value)?;
+                self.environment.assign(assign_expr.name, value.clone())?;
+                Ok(value)
+            }
         }
     }
     fn convert_number_operator<'token>(

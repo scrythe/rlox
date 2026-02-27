@@ -26,4 +26,30 @@ impl Environment {
             format!("Undefined variable '{}'", var_name),
         ))
     }
+
+    pub fn assign<'token>(
+        &mut self,
+        name: Token<'token>,
+        value: LiteralValue,
+    ) -> Result<(), RuntimeError<'token>> {
+        // let var_name = name.lexeme;
+        // match self.values.insert(var_name.to_string(), value) {
+        //     Some(_) => Ok(()),
+        //     None => Err(RuntimeError::new(
+        //         name,
+        //         format!("Undefined variable '{}'", var_name),
+        //     )),
+        // }
+        let var_name = name.lexeme;
+        match self.values.get_mut(var_name) {
+            Some(value_ref) => {
+                *value_ref = value;
+                Ok(())
+            }
+            None => Err(RuntimeError::new(
+                name,
+                format!("Undefined variable '{}'", var_name),
+            )),
+        }
+    }
 }

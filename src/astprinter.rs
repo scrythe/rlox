@@ -5,6 +5,13 @@ pub struct _AstPrinter {}
 impl _AstPrinter {
     pub fn _print(expr: Expr) -> String {
         match expr {
+            Expr::Assign(assign_expr) => {
+                format!(
+                    "{} {}",
+                    assign_expr.name.lexeme,
+                    _AstPrinter::_print(assign_expr.value)
+                )
+            }
             Expr::Binary(binary_expr) => {
                 format!(
                     "({} {} {})",
