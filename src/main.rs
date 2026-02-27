@@ -58,13 +58,13 @@ impl Lox {
         }
     }
     fn run(&mut self, source: String) {
-        let scanner = scanner::Scanner::new(&source, &mut self.lox_error);
-        let tokens = scanner.scan_tokens();
+        let scanner = scanner::Scanner::new(&source);
+        let (tokens, has_scan_error) = scanner.scan_tokens();
 
         let parser = parser::Parser::new(tokens, &mut self.lox_error);
         let statements = parser.parse();
 
-        if self.lox_error.had_error {
+        if has_scan_error {
             return;
         }
 
@@ -74,6 +74,22 @@ impl Lox {
 
         // TODO: complete ig
     }
+}
+
+fn error_token(token: &Token, message: &str) {
+    if token.token_type == TokenType::Eof {
+        report(token.line, " at end", message);
+    } else {
+        report(token.line, &format!(" at '{}'", token.lexeme), message);
+    }
+}
+
+fn error_line(line: u32, message: &str) {
+    report(line, "", message);
+}
+
+fn report(line: u32, err_where: &str, message: &str) {
+    println!("[line {line}] Error {err_where}: {message}");
 }
 
 struct LoxError {
@@ -88,10 +104,6 @@ impl LoxError {
             had_error,
             had_runtime_error,
         }
-    }
-
-    fn error_line(&mut self, line: u32, message: &str) {
-        self.report(line, "", message);
     }
 
     fn error_token(&mut self, token: &Token, message: &str) {
@@ -120,8 +132,8 @@ mod test {
     fn test_parser_and_ast_printer() {
         let mut lox = Lox::new();
         let source = "2+5 / 4 * 2 + 4 == -3";
-        let scanner = scanner::Scanner::new(source, &mut lox.lox_error);
-        let tokens = scanner.scan_tokens();
+        let scanner = scanner::Scanner::new(source);
+        let (tokens, has_scan_error) = scanner.scan_tokens();
 
         let parser = parser::Parser::new(tokens, &mut lox.lox_error);
         let expression = parser.parse();

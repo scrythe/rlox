@@ -1,18 +1,20 @@
-use crate::LoxError;
 use std::{collections::HashMap, str};
 
-pub struct Scanner<'a, 'b> {
+use crate::error_line;
+
+pub struct ScanError();
+
+pub struct Scanner<'a> {
     source: &'a [u8],
     tokens: Vec<Token<'a>>,
     start: usize,
     current: usize,
     line: u32,
-    lox_error: &'b mut LoxError,
     token_keyword_map: HashMap<&'static str, TokenType>,
 }
 
-impl<'a, 'b> Scanner<'a, 'b> {
-    pub fn new(source: &'a str, lox_error: &'b mut LoxError) -> Scanner<'a, 'b> {
+impl<'a> Scanner<'a> {
+    pub fn new(source: &'a str) -> Scanner<'a> {
         let source = source.as_bytes();
         let tokens = Vec::new();
         let start = 0;
@@ -25,14 +27,16 @@ impl<'a, 'b> Scanner<'a, 'b> {
             start,
             current,
             line,
-            lox_error,
             token_keyword_map,
         }
     }
-    pub fn scan_tokens(mut self) -> Vec<Token<'a>> {
+    pub fn scan_tokens(mut self) -> (Vec<Token<'a>>, bool) {
+        let mut has_scan_error = false;
         while !self.is_at_end() {
             self.start = self.current;
-            self.scan_token();
+            if self.scan_token().is_err() {
+                has_scan_error = true;
+            };
         }
         self.tokens.push(Token::new(
             TokenType::Eof,
@@ -40,10 +44,10 @@ impl<'a, 'b> Scanner<'a, 'b> {
             LiteralValue::None,
             self.line,
         ));
-        self.tokens
+        (self.tokens, has_scan_error)
     }
 
-    fn scan_token(&mut self) {
+    fn scan_token(&mut self) -> Result<(), ScanError> {
         let c = self.advance();
         match c {
             b'(' => self.add_token(TokenType::LeftParen),
@@ -105,7 +109,7 @@ impl<'a, 'b> Scanner<'a, 'b> {
 
             b'\n' => self.line += 1,
 
-            b'"' => self.string(),
+            b'"' => self.string()?,
 
             b'0'..=b'9' => self.number(),
 
@@ -114,15 +118,11 @@ impl<'a, 'b> Scanner<'a, 'b> {
             b'_' => self.identifier(),
 
             c => {
-                self.lox_error.error_line(
-                    self.line,
-                    &format!(
-                        "Unexpected character {}",
-                        c // std::str::from_utf8(&[c]).unwrap()
-                    ),
-                );
+                error_line(self.line, &format!("Unexpected character {}.", c));
+                return Err(ScanError());
             }
         }
+        Ok(())
     }
 
     fn advance(&mut self) -> u8 {
@@ -172,7 +172,7 @@ impl<'a, 'b> Scanner<'a, 'b> {
         self.current >= self.source.len()
     }
 
-    fn string(&mut self) {
+    fn string(&mut self) -> Result<(), ScanError> {
         while self.peek() != b'"' && !self.is_at_end() {
             if self.peek() == b'\n' {
                 self.line += 1
@@ -181,8 +181,8 @@ impl<'a, 'b> Scanner<'a, 'b> {
         }
 
         if self.is_at_end() {
-            self.lox_error.error_line(self.line, "Unterminated string.");
-            return;
+            error_line(self.line, "Unterminated string.");
+            return Err(ScanError());
         }
         // for closing "
         self.advance();
@@ -190,6 +190,7 @@ impl<'a, 'b> Scanner<'a, 'b> {
         let value = &self.source[self.start + 1..self.current - 1];
         let value = str::from_utf8(value).unwrap().to_string();
         self.add_token_literal(TokenType::String, LiteralValue::String(value));
+        Ok(())
     }
 
     fn is_digit(c: u8) -> bool {
@@ -345,14 +346,12 @@ impl<'a> Token<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::Lox;
 
     #[test]
     fn test_scanner() {
-        let mut lox = Lox::new();
         let source = "// aaa \n / b * + \n \"hm\" 5";
-        let scanner = Scanner::new(source, &mut lox.lox_error);
-        let tokens = scanner.scan_tokens();
+        let scanner = Scanner::new(source);
+        let (tokens, _has_scan_error) = scanner.scan_tokens();
         assert_eq!(
             tokens,
             vec![
