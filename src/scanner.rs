@@ -1,6 +1,5 @@
+use crate::LoxError;
 use std::{collections::HashMap, str};
-
-use crate::error_line;
 
 pub struct ScanError();
 
@@ -118,7 +117,7 @@ impl<'a> Scanner<'a> {
             b'_' => self.identifier(),
 
             c => {
-                error_line(self.line, &format!("Unexpected character {}.", c));
+                LoxError::error_line(self.line, &format!("Unexpected character {}.", c));
                 return Err(ScanError());
             }
         }
@@ -181,7 +180,7 @@ impl<'a> Scanner<'a> {
         }
 
         if self.is_at_end() {
-            error_line(self.line, "Unterminated string.");
+            LoxError::error_line(self.line, "Unterminated string.");
             return Err(ScanError());
         }
         // for closing "
@@ -351,7 +350,10 @@ mod test {
     fn test_scanner() {
         let source = "// aaa \n / b * + \n \"hm\" 5";
         let scanner = Scanner::new(source);
-        let (tokens, _has_scan_error) = scanner.scan_tokens();
+        let (tokens, has_scan_error) = scanner.scan_tokens();
+        if has_scan_error {
+            panic!("Unexpected scan error.")
+        }
         assert_eq!(
             tokens,
             vec![

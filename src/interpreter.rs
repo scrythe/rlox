@@ -5,9 +5,9 @@ use crate::{
     scanner::{LiteralValue, Token, TokenType},
 };
 
-struct RuntimeError<'a, 'b> {
-    token: Token<'a>,
-    message: &'b str,
+struct RuntimeError<'t, 'm> {
+    token: Token<'t>,
+    message: &'m str,
 }
 
 impl<'a, 'b> RuntimeError<'a, 'b> {
@@ -16,18 +16,14 @@ impl<'a, 'b> RuntimeError<'a, 'b> {
     }
 }
 
-pub struct Interpreter<'a, 'e> {
-    lox_error: &'a mut LoxError,
+pub struct Interpreter<'e> {
     environment: environment::Environment<'e>,
 }
 
-impl<'a, 'e> Interpreter<'a, 'e> {
-    pub fn new(lox_error: &'a mut LoxError) -> Interpreter<'a, 'e> {
+impl<'e> Interpreter<'e> {
+    pub fn new() -> Interpreter<'e> {
         let environment = Environment::new();
-        Interpreter {
-            lox_error,
-            environment,
-        }
+        Interpreter { environment }
     }
 
     pub fn interpret(mut self, statements: Vec<Stmt<'e>>) {

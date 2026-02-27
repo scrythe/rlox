@@ -1,48 +1,42 @@
+use crate::scanner::{Token, TokenType};
 use std::{
     env, fs,
     io::{self, Write},
     process,
 };
 
-use crate::scanner::{Token, TokenType};
 mod astprinter;
 mod environment;
 mod interpreter;
 mod parser;
 mod scanner;
+
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let mut lox = Lox::new();
     if args.len() > 2 {
         println!("Usage: jlox [script]");
         process::exit(64);
     } else if args.len() == 2 {
-        lox.run_file(&args[1]);
+        Lox::run_file(&args[1]);
     } else {
-        lox.run_prompt();
+        Lox::run_prompt();
     }
 }
 
-struct Lox {
-    lox_error: LoxError,
-}
+struct Lox {}
 
 impl Lox {
-    fn new() -> Lox {
-        let lox_error = LoxError::new();
-        Lox { lox_error }
-    }
-    fn run_file(&mut self, file_path: &str) {
+    fn run_file(file_path: &str) {
         let source = fs::read_to_string(file_path).unwrap();
-        self.run(source);
-        if self.lox_error.had_error {
-            process::exit(65);
-        }
-        if self.lox_error.had_runtime_error {
-            process::exit(70);
+        let lox_error = Lox::run(source);
+        if let Err(lox_error) = lox_error {
+            match lox_error {
+                LoxError::CompileError => process::exit(65),
+                LoxError::RuntimeError => process::exit(70),
+            }
         }
     }
-    fn run_prompt(&mut self) {
+    fn run_prompt() {
         loop {
             print!("> ");
             io::stdout().flush().unwrap();
@@ -53,91 +47,78 @@ impl Lox {
             if line.is_empty() {
                 break;
             }
-            self.run(line);
-            self.lox_error.had_error = false;
+            let _ = Lox::run(line);
         }
     }
-    fn run(&mut self, source: String) {
+    fn run(source: String) -> Result<(), LoxError> {
         let scanner = scanner::Scanner::new(&source);
         let (tokens, has_scan_error) = scanner.scan_tokens();
 
-        let parser = parser::Parser::new(tokens, &mut self.lox_error);
-        let statements = parser.parse();
+        let parser = parser::Parser::new(tokens);
+        let (statements, has_parser_error) = parser.parse();
 
-        if has_scan_error {
-            return;
+        if has_scan_error || has_parser_error {
+            return Err(LoxError::CompileError);
         }
 
         // let ast_print_res = astprinter::AstPrinter::print(expression);
-        let interpreter = interpreter::Interpreter::new(&mut self.lox_error);
+        let interpreter = interpreter::Interpreter::new();
         interpreter.interpret(statements);
 
         // TODO: complete ig
+        Ok(())
     }
 }
 
-fn error_token(token: &Token, message: &str) {
-    if token.token_type == TokenType::Eof {
-        report(token.line, " at end", message);
-    } else {
-        report(token.line, &format!(" at '{}'", token.lexeme), message);
-    }
-}
-
-fn error_line(line: u32, message: &str) {
-    report(line, "", message);
-}
-
-fn report(line: u32, err_where: &str, message: &str) {
-    println!("[line {line}] Error {err_where}: {message}");
-}
-
-struct LoxError {
-    had_error: bool,
-    had_runtime_error: bool,
+enum LoxError {
+    CompileError,
+    RuntimeError,
 }
 impl LoxError {
-    fn new() -> LoxError {
-        let had_error = false;
-        let had_runtime_error = false;
-        LoxError {
-            had_error,
-            had_runtime_error,
-        }
-    }
-
-    fn error_token(&mut self, token: &Token, message: &str) {
+    pub fn error_token(token: &Token, message: &str) {
         if token.token_type == TokenType::Eof {
-            self.report(token.line, " at end", message);
+            LoxError::report(token.line, " at end", message);
         } else {
-            self.report(token.line, &format!(" at '{}'", token.lexeme), message);
+            LoxError::report(token.line, &format!(" at '{}'", token.lexeme), message);
         }
     }
 
-    fn report(&mut self, line: u32, err_where: &str, message: &str) {
-        println!("[line {line}] Error {err_where}: {message}");
-        self.had_error = true;
+    pub fn error_line(line: u32, message: &str) {
+        LoxError::report(line, "", message);
     }
 
-    pub fn runtime_error(&mut self, token: Token, message: &str) {
+    fn report(line: u32, err_where: &str, message: &str) {
+        println!("[line {line}] Error {err_where}: {message}");
+    }
+
+    pub fn runtime_error(token: Token, message: &str) {
         println!("{message}\n[line {}]", token.line);
-        self.had_runtime_error = true;
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::parser::Stmt;
+
     #[test]
     fn test_parser_and_ast_printer() {
-        let mut lox = Lox::new();
-        let source = "2+5 / 4 * 2 + 4 == -3";
+        let source = "2+5 / 4 * 2 + 4 == -3;";
         let scanner = scanner::Scanner::new(source);
         let (tokens, has_scan_error) = scanner.scan_tokens();
 
-        let parser = parser::Parser::new(tokens, &mut lox.lox_error);
-        let expression = parser.parse();
-        // let ast_print_res = astprinter::AstPrinter::_print(expression);
-        // assert_eq!(ast_print_res, "(== (+ (+ 2 (* (/ 5 4) 2)) 4) (- 3))");
+        if has_scan_error {
+            panic!("Unexpected scan error");
+        }
+
+        let parser = parser::Parser::new(tokens);
+        let (mut statements, _) = parser.parse();
+        match statements.remove(0) {
+            Stmt::Expression(expr) => {
+                let ast_print_res = astprinter::AstPrinter::_print(expr.expression);
+                assert_eq!(ast_print_res, "(== (+ (+ 2 (* (/ 5 4) 2)) 4) (- 3))");
+            }
+            _ => panic!("error"),
+        }
     }
 }
