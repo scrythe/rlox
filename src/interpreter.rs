@@ -1,6 +1,6 @@
 use crate::{
     LoxError,
-    parser::Expr,
+    parser::{Expr, Stmt},
     scanner::{LiteralValue, Token, TokenType},
 };
 
@@ -24,14 +24,24 @@ impl<'a> Interpreter<'a> {
         Interpreter { lox_error }
     }
 
-    pub fn interpret(self, expr: Expr) {
-        match Interpreter::evaluate(expr) {
-            Ok(val) => println!("{}", Interpreter::stringify(val)),
-            Err(runtime_error) => self
-                .lox_error
-                .runtime_error(runtime_error.token, runtime_error.message),
+    pub fn interpret(mut self, statements: Vec<Stmt>) {
+        for statement in statements {
+            self.execute(statement);
         }
     }
+
+    fn execute(&mut self, stmt: Stmt) {
+        match stmt {
+            Stmt::Pritn(expr) => {
+                let value = Interpreter::evaluate(expr.expression).unwrap_or(LiteralValue::None);
+                println!("{}", Interpreter::stringify(value));
+            }
+            Stmt::Expression(expr) => {
+                Interpreter::evaluate(expr.expression).unwrap_or(LiteralValue::None);
+            }
+        }
+    }
+
     fn stringify(evaluated: LiteralValue) -> String {
         match evaluated {
             LiteralValue::None => "nil".to_string(),
