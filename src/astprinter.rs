@@ -27,6 +27,7 @@ impl AstPrinter {
                 unary_expr.operator.lexeme,
                 AstPrinter::_print(unary_expr.right),
             ),
+            Expr::Variable(var_expr) => var_expr.name.lexeme.to_string(),
         }
     }
 }

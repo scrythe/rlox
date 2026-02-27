@@ -31,11 +31,13 @@ define_ast!(
     grouping_expr, Grouping<'a> -> expression: Expr<'a> ;
     literal_expr, Literal -> value: LiteralValue ;
     unary_expr, Unary<'a> -> operator: Token<'a> , right: Expr<'a> ;
+    variable_expr, Variable<'a> -> name: Token<'a> ;
 );
 define_ast!(
     Stmt<'a>;
     expression_stmt, Expression<'a> -> expression: Expr<'a>;
     print_stmt, Pritn<'a> -> expression: Expr<'a>;
+    var_stmt, Var<'a> -> name: Token<'a>, initializer: Expr<'a>;
 );
 
 pub struct Parser<'a, 'l> {
@@ -55,9 +57,10 @@ impl<'a, 'l> Parser<'a, 'l> {
     }
 
     pub fn parse(mut self) -> Vec<Stmt<'a>> {
+        // program -> statement* EOF
         let mut statements: Vec<Stmt> = Vec::new();
         while !self.is_at_end() {
-            let statement = self.statement();
+            let statement = self.declaration();
             statements.push(statement);
         }
         statements
@@ -67,7 +70,36 @@ impl<'a, 'l> Parser<'a, 'l> {
         // }
     }
 
+    fn declaration(&mut self) -> Stmt<'a> {
+        if self.match_token(&[TokenType::Var]) {
+            self.var_declaration()
+        } else {
+            self.statement()
+        }
+    }
+
+    fn var_declaration(&mut self) -> Stmt<'a> {
+        // varDecl -> "var" IDENTIFIER ( "=" expression )? ";"
+        let name = self
+            .consume(&TokenType::Identifier, "Expect variable name.")
+            .unwrap()
+            .clone();
+
+        let initializer = if self.match_token(&[TokenType::Equal]) {
+            self.expression().unwrap()
+        } else {
+            Expr::literal_expr(LiteralValue::None)
+        };
+
+        self.consume(
+            &TokenType::Semicolon,
+            "Expect ';' after variable declaration",
+        );
+        Stmt::var_stmt(name, initializer)
+    }
+
     fn statement(&mut self) -> Stmt<'a> {
+        // statement -> exprStmt | printStmt
         if self.match_token(&[TokenType::Print]) {
             self.print_statement()
         } else {
@@ -76,6 +108,8 @@ impl<'a, 'l> Parser<'a, 'l> {
     }
 
     fn print_statement(&mut self) -> Stmt<'a> {
+        // statement -> "print" expression ";"
+        // print already matched from fn statement
         let value = self.expression().unwrap();
         self.consume(&TokenType::Semicolon, "Exprect ';' after value.")
             .unwrap();
@@ -83,6 +117,7 @@ impl<'a, 'l> Parser<'a, 'l> {
     }
 
     fn expression_statement(&mut self) -> Stmt<'a> {
+        // statement -> expression ";"
         let expr = self.expression().unwrap();
         self.consume(&TokenType::Semicolon, "Expect ';' after expression.")
             .unwrap();
@@ -156,7 +191,7 @@ impl<'a, 'l> Parser<'a, 'l> {
     }
 
     fn primary(&mut self) -> Result<Expr<'a>, ()> {
-        // primary ->  Number | String | "true" | "false "| "nil" | "(" expression ")"
+        // primary ->  Number | String | "true" | "false "| "nil" | "(" expression ")" | IDENTIFIER
         if self.match_token(&[TokenType::False]) {
             Ok(Expr::literal_expr(LiteralValue::Bool(false)))
         } else if self.match_token(&[TokenType::True]) {
@@ -165,6 +200,8 @@ impl<'a, 'l> Parser<'a, 'l> {
             Ok(Expr::literal_expr(LiteralValue::None))
         } else if self.match_token(&[TokenType::String, TokenType::Number]) {
             Ok(Expr::literal_expr(self.previous().literal.clone()))
+        } else if self.match_token(&[TokenType::Identifier]) {
+            Ok(Expr::variable_expr(self.previous().clone()))
         } else if self.match_token(&[TokenType::LeftParen]) {
             let expr = self.expression()?;
             self.consume(&TokenType::RightParen, "Expect ')' after expression.")?;

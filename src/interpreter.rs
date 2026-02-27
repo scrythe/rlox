@@ -1,5 +1,6 @@
 use crate::{
     LoxError,
+    environment::{self, Environment},
     parser::{Expr, Stmt},
     scanner::{LiteralValue, Token, TokenType},
 };
@@ -15,29 +16,40 @@ impl<'a, 'b> RuntimeError<'a, 'b> {
     }
 }
 
-pub struct Interpreter<'a> {
+pub struct Interpreter<'a, 'e> {
     lox_error: &'a mut LoxError,
+    environment: environment::Environment<'e>,
 }
 
-impl<'a> Interpreter<'a> {
-    pub fn new(lox_error: &'a mut LoxError) -> Interpreter<'a> {
-        Interpreter { lox_error }
+impl<'a, 'e> Interpreter<'a, 'e> {
+    pub fn new(lox_error: &'a mut LoxError) -> Interpreter<'a, 'e> {
+        let environment = Environment::new();
+        Interpreter {
+            lox_error,
+            environment,
+        }
     }
 
-    pub fn interpret(mut self, statements: Vec<Stmt>) {
+    pub fn interpret(mut self, statements: Vec<Stmt<'e>>) {
         for statement in statements {
             self.execute(statement);
         }
     }
 
-    fn execute(&mut self, stmt: Stmt) {
+    fn execute(&mut self, stmt: Stmt<'e>) {
         match stmt {
+            Stmt::Var(expr) => {
+                let value = self
+                    .evaluate(expr.initializer)
+                    .unwrap_or(LiteralValue::None);
+                self.environment.define(expr.name.lexeme, value);
+            }
             Stmt::Pritn(expr) => {
-                let value = Interpreter::evaluate(expr.expression).unwrap_or(LiteralValue::None);
+                let value = self.evaluate(expr.expression).unwrap_or(LiteralValue::None);
                 println!("{}", Interpreter::stringify(value));
             }
             Stmt::Expression(expr) => {
-                Interpreter::evaluate(expr.expression).unwrap_or(LiteralValue::None);
+                self.evaluate(expr.expression).unwrap_or(LiteralValue::None);
             }
         }
     }
@@ -50,12 +62,13 @@ impl<'a> Interpreter<'a> {
             LiteralValue::String(text) => text,
         }
     }
-    fn evaluate<'b, 'c>(expr: Expr<'b>) -> Result<LiteralValue, RuntimeError<'b, 'c>> {
+    fn evaluate<'b, 'c>(&mut self, expr: Expr<'b>) -> Result<LiteralValue, RuntimeError<'b, 'c>> {
         match expr {
+            Expr::Variable(name) => Ok(self.environment.get(name.name).clone()),
             Expr::Literal(val) => Ok(val.value),
-            Expr::Grouping(val) => Interpreter::evaluate(val.expression),
+            Expr::Grouping(val) => self.evaluate(val.expression),
             Expr::Unary(val) => {
-                let right = Interpreter::evaluate(val.right)?;
+                let right = self.evaluate(val.right)?;
                 let literal = match val.operator.token_type {
                     TokenType::Minus => {
                         let val = Interpreter::convert_number_operator(val.operator, right)?;
@@ -71,8 +84,8 @@ impl<'a> Interpreter<'a> {
                 Ok(literal)
             }
             Expr::Binary(val) => {
-                let left = Interpreter::evaluate(val.left)?;
-                let right = Interpreter::evaluate(val.right)?;
+                let left = self.evaluate(val.left)?;
+                let right = self.evaluate(val.right)?;
 
                 let literal = match val.operator.token_type {
                     TokenType::Minus => {

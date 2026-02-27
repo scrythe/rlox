@@ -6,6 +6,7 @@ use std::{
 
 use crate::scanner::{Token, TokenType};
 mod astprinter;
+mod environment;
 mod interpreter;
 mod parser;
 mod scanner;
