@@ -43,37 +43,56 @@ struct ParseError();
 pub struct Parser<'tokens> {
     tokens: Vec<Token<'tokens>>,
     current: usize,
-    has_error: bool,
 }
 
 impl<'tokens> Parser<'tokens> {
     pub fn new(tokens: Vec<Token<'tokens>>) -> Parser<'tokens> {
         let current = 0;
-        let has_error = false;
-        Parser {
-            tokens,
-            current,
-            has_error,
-        }
+        Parser { tokens, current }
     }
 
     pub fn parse(mut self) -> (Vec<Stmt<'tokens>>, bool) {
         // program -> statement* EOF
         let mut statements: Vec<Stmt> = Vec::new();
+        let mut has_error = false;
         while !self.is_at_end() {
             let statement = self.declaration();
             match statement {
                 Ok(statement) => statements.push(statement),
                 Err(_) => {
-                    self.has_error = true;
+                    has_error = true;
                     self.synchonize()
                 }
             }
         }
-        (statements, self.has_error)
+        (statements, has_error)
     }
 
-    fn synchonize(&mut self) {}
+    fn synchonize(&mut self) {
+        self.advance();
+
+        while !self.is_at_end() {
+            if self.previous().token_type == TokenType::Semicolon {
+                return;
+            }
+
+            match self.peek().token_type {
+                TokenType::Class
+                | TokenType::Fun
+                | TokenType::Var
+                | TokenType::For
+                | TokenType::If
+                | TokenType::While
+                | TokenType::Print
+                | TokenType::Return => {
+                    return;
+                }
+                _ => {
+                    self.advance();
+                }
+            }
+        }
+    }
 
     fn declaration(&mut self) -> Result<Stmt<'tokens>, ParseError> {
         if self.match_token(&[TokenType::Var]) {

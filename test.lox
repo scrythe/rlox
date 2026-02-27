@@ -1,5 +1,3 @@
-var a = 5 + 5;
-print a;
-var b = a + 5;
-print b;
+var a = (5 + 5;
+print a
 
