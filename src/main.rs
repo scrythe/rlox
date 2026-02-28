@@ -11,7 +11,14 @@ mod interpreter;
 mod parser;
 mod scanner;
 
+#[cfg(feature = "dhat-heap")]
+#[global_allocator]
+static ALLOC: dhat::Alloc = dhat::Alloc;
+
 fn main() {
+    #[cfg(feature = "dhat-heap")]
+    let _profiler = dhat::Profiler::new_heap();
+
     let args: Vec<String> = env::args().collect();
     let lox = Lox::new();
     if args.len() > 2 {
@@ -64,8 +71,8 @@ impl Lox {
 
         let parser = parser::Parser::new(tokens);
         let (statements, has_parser_error) = parser.parse();
-        let res = astprinter::_AstPrinter::_print_statements(&statements);
-        dbg!(res);
+        // let res = astprinter::_AstPrinter::_print_statements(&statements);
+        // dbg!(res);
 
         if has_scan_error || has_parser_error {
             return Err(LoxError::CompileError);
@@ -128,7 +135,13 @@ mod test {
                 let ast_print_res = astprinter::_AstPrinter::_print_expression(&expr.expression);
                 assert_eq!(ast_print_res, "(== (+ (+ 2 (* (/ 5 4) 2)) 4) (- 3))");
             }
-            _ => panic!("error"),
+            _ => panic!("Not Expression, error"),
         }
+    }
+
+    #[test]
+    fn test_interpreter_test_lox_file() {
+        let lox = Lox::new();
+        lox.run_file("test.lox");
     }
 }

@@ -127,8 +127,10 @@ impl<'tokens> Parser<'tokens> {
     }
 
     fn statement(&mut self) -> Result<Stmt<'tokens>, LoxParseError> {
-        // statement -> exprStmt | ifStmt | printStmt | whileStmt | block
-        if self.match_token(&[TokenType::If]) {
+        // statement -> exprStmt | forStmt | ifStmt | printStmt | whileStmt | block
+        if self.match_token(&[TokenType::For]) {
+            self.for_statement()
+        } else if self.match_token(&[TokenType::If]) {
             self.if_statement()
         } else if self.match_token(&[TokenType::Print]) {
             self.print_statement()
@@ -139,6 +141,44 @@ impl<'tokens> Parser<'tokens> {
         } else {
             self.expression_statement()
         }
+    }
+
+    fn for_statement(&mut self) -> Result<Stmt<'tokens>, LoxParseError> {
+        self.consume(&TokenType::LeftParen, "Exprect '(' after for.")?;
+        let initializer = if self.match_token(&[TokenType::Semicolon]) {
+            None
+        } else if self.match_token(&[TokenType::Var]) {
+            Some(self.var_declaration()?)
+        } else {
+            Some(self.expression_statement()?)
+        };
+
+        let condition = if !self.check(&TokenType::Semicolon) {
+            self.expression()?
+        } else {
+            Expr::literal_expr(LiteralValue::Bool(true))
+        };
+        self.consume(&TokenType::Semicolon, "Exprect ';' after loop condition.")?;
+
+        let increment = if !self.check(&TokenType::RightParen) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        self.consume(&TokenType::RightParen, "Exprect ')' after loop clause.")?;
+
+        let mut body = self.statement()?;
+
+        if let Some(increment) = increment {
+            body = Stmt::block_stmt(vec![body, Stmt::expression_stmt(increment)])
+        }
+
+        body = Stmt::while_stmt(condition, body);
+
+        if let Some(initializer) = initializer {
+            body = Stmt::block_stmt(vec![initializer, body])
+        }
+        Ok(body)
     }
 
     fn while_stmt(&mut self) -> Result<Stmt<'tokens>, LoxParseError> {
