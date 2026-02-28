@@ -1,16 +1,5 @@
-var a = 5;
-
-if (a) print 5; else print 4;
-
-var a;
-
-if (a) print 3;
-
-
-
-var a = 5;
-
-if (a==4 or a==5) print "a"; else print "a else";
-
-if (a==5 and a==4) print "b"; else print "b else";
-
+var i = 5;
+while (i>=0) {
+  print i;
+  i = i-1;
+}

@@ -64,19 +64,18 @@ impl Lox {
 
         let parser = parser::Parser::new(tokens);
         let (statements, has_parser_error) = parser.parse();
+        let res = astprinter::_AstPrinter::_print_statements(&statements);
+        dbg!(res);
 
         if has_scan_error || has_parser_error {
             return Err(LoxError::CompileError);
         }
 
-        // let ast_print_res = astprinter::AstPrinter::print(expression);
         let res = self.interpreter.interpret(statements);
         if let Err(err) = res {
-            LoxError::runtime_error(err.token, err.message);
+            LoxError::runtime_error(err.line, err.message);
             return Err(LoxError::RuntimeError);
         }
-
-        // TODO: complete ig
         Ok(())
     }
 }
@@ -102,8 +101,8 @@ impl LoxError {
         println!("[line {line}] Error {err_where}: {message}");
     }
 
-    pub fn runtime_error(token: Token, message: String) {
-        println!("{message}\n[line {}]", token.line);
+    pub fn runtime_error(line: u32, message: String) {
+        println!("{message}\n[line {}]", line);
     }
 }
 
@@ -126,7 +125,7 @@ mod test {
         let (mut statements, _) = parser.parse();
         match statements.remove(0) {
             Stmt::Expression(expr) => {
-                let ast_print_res = astprinter::_AstPrinter::_print(expr.expression);
+                let ast_print_res = astprinter::_AstPrinter::_print_expression(&expr.expression);
                 assert_eq!(ast_print_res, "(== (+ (+ 2 (* (/ 5 4) 2)) 4) (- 3))");
             }
             _ => panic!("error"),

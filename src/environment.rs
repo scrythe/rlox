@@ -35,7 +35,7 @@ impl Environment {
         self.values.insert(name.to_string(), value);
     }
 
-    pub fn get<'token>(&self, name: Token<'token>) -> Result<&LiteralValue, RuntimeError<'token>> {
+    pub fn get<'token>(&self, name: &Token<'token>) -> Result<&LiteralValue, RuntimeError> {
         let var_name = name.lexeme;
         let value = self.values.get(var_name);
         match value {
@@ -43,7 +43,7 @@ impl Environment {
             None => match &self.enclosing {
                 Some(enclosing) => enclosing.get(name),
                 None => Err(RuntimeError::new(
-                    name,
+                    name.line,
                     format!("Undefined variable '{}'", var_name),
                 )),
             },
@@ -52,9 +52,9 @@ impl Environment {
 
     pub fn assign<'token>(
         &mut self,
-        name: Token<'token>,
+        name: &Token<'token>,
         value: LiteralValue,
-    ) -> Result<(), RuntimeError<'token>> {
+    ) -> Result<(), RuntimeError> {
         let var_name = name.lexeme;
         match self.values.get_mut(var_name) {
             Some(value_ref) => {
@@ -64,7 +64,7 @@ impl Environment {
             None => match &mut self.enclosing {
                 Some(enclosing) => enclosing.assign(name, value),
                 None => Err(RuntimeError::new(
-                    name,
+                    name.line,
                     format!("Undefined variable '{}'", var_name),
                 )),
             },

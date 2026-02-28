@@ -39,6 +39,7 @@ define_ast!(
     if_stmt, If<'source> -> condition: Expr<'source>, then_branch: Stmt<'source>, else_branch: Option<Stmt<'source>>;
     print_stmt, Pritn<'source> -> expression: Expr<'source>;
     var_stmt, Var<'source> -> name: Token<'source>, initializer: Expr<'source>;
+    while_stmt, While<'source> -> condition: Expr<'source>, body: Stmt<'source>;
 );
 
 #[derive(Debug)]
@@ -126,16 +127,27 @@ impl<'tokens> Parser<'tokens> {
     }
 
     fn statement(&mut self) -> Result<Stmt<'tokens>, LoxParseError> {
-        // statement -> exprStmt | ifStmt | printStmt | block
+        // statement -> exprStmt | ifStmt | printStmt | whileStmt | block
         if self.match_token(&[TokenType::If]) {
             self.if_statement()
         } else if self.match_token(&[TokenType::Print]) {
             self.print_statement()
+        } else if self.match_token(&[TokenType::While]) {
+            self.while_stmt()
         } else if self.match_token(&[TokenType::LeftBrace]) {
             Ok(Stmt::block_stmt(self.block_statement()?))
         } else {
             self.expression_statement()
         }
+    }
+
+    fn while_stmt(&mut self) -> Result<Stmt<'tokens>, LoxParseError> {
+        // while -> "while" "(" expression ")" statement
+        self.consume(&TokenType::LeftParen, "Exprect '(' after while.")?;
+        let condition = self.expression()?;
+        self.consume(&TokenType::RightParen, "Exprect ')' after while condition.")?;
+        let body = self.statement()?;
+        Ok(Stmt::while_stmt(condition, body))
     }
 
     fn if_statement(&mut self) -> Result<Stmt<'tokens>, LoxParseError> {
