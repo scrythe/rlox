@@ -33,6 +33,7 @@ define_ast!(
 );
 define_ast!(
     Stmt<'source>;
+    block_stmt, Block<'source> -> statements: Vec<Stmt<'source>>;
     expression_stmt, Expression<'source> -> expression: Expr<'source>;
     print_stmt, Pritn<'source> -> expression: Expr<'source>;
     var_stmt, Var<'source> -> name: Token<'source>, initializer: Expr<'source>;
@@ -123,9 +124,11 @@ impl<'tokens> Parser<'tokens> {
     }
 
     fn statement(&mut self) -> Result<Stmt<'tokens>, LoxParseError> {
-        // statement -> exprStmt | printStmt
+        // statement -> exprStmt | printStmt | block
         if self.match_token(&[TokenType::Print]) {
             self.print_statement()
+        } else if self.match_token(&[TokenType::LeftBrace]) {
+            Ok(Stmt::block_stmt(self.block_statement()?))
         } else {
             self.expression_statement()
         }
@@ -137,6 +140,17 @@ impl<'tokens> Parser<'tokens> {
         let value = self.expression()?;
         self.consume(&TokenType::Semicolon, "Exprect ';' after value.")?;
         Ok(Stmt::print_stmt(value))
+    }
+
+    fn block_statement(&mut self) -> Result<Vec<Stmt<'tokens>>, LoxParseError> {
+        // block -> "{" declaration "}"
+        let mut statements: Vec<Stmt> = Vec::new();
+        while !self.check(&TokenType::RightBrace) && !self.is_at_end() {
+            let statement = self.declaration()?;
+            statements.push(statement);
+        }
+        self.consume(&TokenType::RightBrace, "Expect '}' after block")?;
+        Ok(statements)
     }
 
     fn expression_statement(&mut self) -> Result<Stmt<'tokens>, LoxParseError> {

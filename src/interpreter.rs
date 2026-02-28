@@ -39,6 +39,7 @@ impl Interpreter {
         &mut self,
         stmt: Stmt<'statements>,
     ) -> Result<(), RuntimeError<'statements>> {
+        // self.environment = Environment::new_enclosing(self.environment);
         match stmt {
             Stmt::Var(expr) => {
                 let value = self.evaluate(expr.initializer)?;
@@ -50,6 +51,13 @@ impl Interpreter {
             }
             Stmt::Expression(expr) => {
                 self.evaluate(expr.expression)?;
+            }
+            Stmt::Block(expr) => {
+                self.environment.swap_new_scoped_env();
+                for statement in expr.statements {
+                    self.execute(statement)?;
+                }
+                self.environment.swap_upper_env();
             }
         }
         Ok(())
