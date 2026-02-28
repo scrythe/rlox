@@ -35,6 +35,12 @@ impl _AstPrinter {
                 _AstPrinter::_print(unary_expr.right),
             ),
             Expr::Variable(var_expr) => var_expr.name.lexeme.to_string(),
+            Expr::Logical(logcal_expr) => format!(
+                "({} {} {})",
+                logcal_expr.operator.lexeme,
+                _AstPrinter::_print(logcal_expr.left),
+                _AstPrinter::_print(logcal_expr.right)
+            ),
         }
     }
 }

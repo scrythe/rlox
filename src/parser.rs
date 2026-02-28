@@ -28,6 +28,7 @@ define_ast!(
     binary_expr, Binary<'source> -> left: Expr<'source> , operator: Token<'source> , right: Expr<'source>;
     grouping_expr, Grouping<'source> -> expression: Expr<'source>;
     literal_expr, Literal -> value: LiteralValue;
+    logiccal_expr, Logical<'source> -> left: Expr<'source> , operator: Token<'source> , right: Expr<'source>;
     unary_expr, Unary<'source> -> operator: Token<'source> , right: Expr<'source>;
     variable_expr, Variable<'source> -> name: Token<'source>;
 );
@@ -138,6 +139,7 @@ impl<'tokens> Parser<'tokens> {
     }
 
     fn if_statement(&mut self) -> Result<Stmt<'tokens>, LoxParseError> {
+        // ifStmt -> "if" "(" expression ")" statement ( "else" statement )?
         self.consume(&TokenType::LeftParen, "Exprect '(' after if.")?;
         let condition = self.expression()?;
         self.consume(&TokenType::RightParen, "Exprect ')' after if condition.")?;
@@ -184,8 +186,8 @@ impl<'tokens> Parser<'tokens> {
 
     fn assignment(&mut self) -> Result<Expr<'tokens>, LoxParseError> {
         // assigntment -> IDENTIFIER "=" assignment
-        //              | equality
-        let expr = self.equality()?;
+        //              | logir_or
+        let expr = self.or()?;
         if self.match_token(&[TokenType::Equal]) {
             let equals_token = self.previous().clone();
             let value = self.assignment()?;
@@ -195,6 +197,28 @@ impl<'tokens> Parser<'tokens> {
             }
 
             self.error(&equals_token, "Invalid assignment target.");
+        }
+        Ok(expr)
+    }
+
+    fn or(&mut self) -> Result<Expr<'tokens>, LoxParseError> {
+        // logic_or -> logic_and ( "or" logic_and )*
+        let mut expr = self.and()?;
+        while self.match_token(&[TokenType::Or]) {
+            let operator = self.previous().clone();
+            let right = self.and()?;
+            expr = Expr::logiccal_expr(expr, operator, right);
+        }
+        Ok(expr)
+    }
+
+    fn and(&mut self) -> Result<Expr<'tokens>, LoxParseError> {
+        // logic_and -> equality ( "or" equality )*
+        let mut expr = self.equality()?;
+        while self.match_token(&[TokenType::And]) {
+            let operator = self.previous().clone();
+            let right = self.equality()?;
+            expr = Expr::logiccal_expr(expr, operator, right);
         }
         Ok(expr)
     }

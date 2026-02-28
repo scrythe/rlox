@@ -64,7 +64,7 @@ impl Interpreter {
             }
             Stmt::If(expr) => {
                 let value = self.evaluate(expr.condition)?;
-                if Interpreter::is_truthy(value) {
+                if Interpreter::is_truthy(&value) {
                     self.execute(expr.then_branch)?;
                 } else if let Some(stmt) = expr.else_branch {
                     self.execute(stmt)?;
@@ -97,7 +97,7 @@ impl Interpreter {
                         let val = Interpreter::convert_number_operator(val.operator, right)?;
                         LiteralValue::Number(-val)
                     }
-                    TokenType::Bang => LiteralValue::Bool(Interpreter::is_truthy(right)),
+                    TokenType::Bang => LiteralValue::Bool(Interpreter::is_truthy(&right)),
                     // Unreachable.
                     _ => LiteralValue::None,
                 };
@@ -165,6 +165,28 @@ impl Interpreter {
                 };
                 Ok(literal)
             }
+            Expr::Logical(val) => {
+                let left = self.evaluate(val.left)?;
+                match val.operator.token_type {
+                    TokenType::Or => {
+                        if Interpreter::is_truthy(&left) {
+                            return Ok(left);
+                        }
+                    }
+                    TokenType::And => {
+                        if !Interpreter::is_truthy(&left) {
+                            return Ok(left);
+                        }
+                    }
+                    _ => {
+                        panic!(
+                            "Error, expected Logical Operator but found: {}",
+                            val.operator.lexeme
+                        )
+                    }
+                }
+                self.evaluate(val.right)
+            }
             Expr::Assign(assign_expr) => {
                 let value = self.evaluate(assign_expr.value)?;
                 self.environment.assign(assign_expr.name, value.clone())?;
@@ -173,9 +195,9 @@ impl Interpreter {
         }
     }
 
-    fn is_truthy(val: LiteralValue) -> bool {
+    fn is_truthy(val: &LiteralValue) -> bool {
         match val {
-            LiteralValue::Bool(bool_val) => bool_val,
+            LiteralValue::Bool(bool_val) => *bool_val,
             LiteralValue::None => false,
             _ => true,
         }
