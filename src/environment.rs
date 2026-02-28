@@ -23,13 +23,12 @@ impl Environment {
         self.enclosing = Some(Box::new(old_env));
     }
 
-    pub fn swap_upper_env(&mut self) {
+    pub fn get_upper_env(&mut self) -> Environment {
         let upper_env = self.enclosing.take().expect(
             "Failed to get environment from upper scope, \
             this is likely a interpreter issue, please report this",
         );
-        // mem::swap(self, &mut upper_env);
-        *self = *upper_env;
+        *upper_env
     }
 
     pub fn define(&mut self, name: &str, value: LiteralValue) {

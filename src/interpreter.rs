@@ -55,9 +55,12 @@ impl Interpreter {
             Stmt::Block(expr) => {
                 self.environment.swap_new_scoped_env();
                 for statement in expr.statements {
-                    self.execute(statement)?;
+                    if let Err(err) = self.execute(statement) {
+                        self.environment = self.environment.get_upper_env();
+                        return Err(err);
+                    }
                 }
-                self.environment.swap_upper_env();
+                self.environment = self.environment.get_upper_env();
             }
         }
         Ok(())
