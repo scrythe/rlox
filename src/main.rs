@@ -128,7 +128,13 @@ mod test {
                 let ast_print_res = astprinter::_AstPrinter::_print_expression(&expr.expression);
                 assert_eq!(ast_print_res, "(== (+ (+ 2 (* (/ 5 4) 2)) 4) (- 3))");
             }
-            _ => panic!("error"),
+            _ => panic!("Not Expression, error"),
         }
+    }
+
+    #[test]
+    fn test_interpreter_test_lox_file() {
+        let lox = Lox::new();
+        lox.run_file("test.lox");
     }
 }
