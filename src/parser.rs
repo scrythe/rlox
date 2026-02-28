@@ -35,6 +35,7 @@ define_ast!(
     Stmt<'source>;
     block_stmt, Block<'source> -> statements: Vec<Stmt<'source>>;
     expression_stmt, Expression<'source> -> expression: Expr<'source>;
+    if_stmt, If<'source> -> condition: Expr<'source>, then_branch: Stmt<'source>, else_branch: Option<Stmt<'source>>;
     print_stmt, Pritn<'source> -> expression: Expr<'source>;
     var_stmt, Var<'source> -> name: Token<'source>, initializer: Expr<'source>;
 );
@@ -124,14 +125,30 @@ impl<'tokens> Parser<'tokens> {
     }
 
     fn statement(&mut self) -> Result<Stmt<'tokens>, LoxParseError> {
-        // statement -> exprStmt | printStmt | block
-        if self.match_token(&[TokenType::Print]) {
+        // statement -> exprStmt | ifStmt | printStmt | block
+        if self.match_token(&[TokenType::If]) {
+            self.if_statement()
+        } else if self.match_token(&[TokenType::Print]) {
             self.print_statement()
         } else if self.match_token(&[TokenType::LeftBrace]) {
             Ok(Stmt::block_stmt(self.block_statement()?))
         } else {
             self.expression_statement()
         }
+    }
+
+    fn if_statement(&mut self) -> Result<Stmt<'tokens>, LoxParseError> {
+        self.consume(&TokenType::LeftParen, "Exprect '(' after if.")?;
+        let condition = self.expression()?;
+        self.consume(&TokenType::RightParen, "Exprect ')' after if condition.")?;
+
+        let then_branch = self.statement()?;
+        let else_branch = if self.match_token(&[TokenType::Else]) {
+            Some(self.statement()?)
+        } else {
+            None
+        };
+        Ok(Stmt::if_stmt(condition, then_branch, else_branch))
     }
 
     fn print_statement(&mut self) -> Result<Stmt<'tokens>, LoxParseError> {

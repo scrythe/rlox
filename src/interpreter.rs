@@ -62,6 +62,14 @@ impl Interpreter {
                 }
                 self.environment = self.environment.get_upper_env();
             }
+            Stmt::If(expr) => {
+                let value = self.evaluate(expr.condition)?;
+                if Interpreter::is_truthy(value) {
+                    self.execute(expr.then_branch)?;
+                } else if let Some(stmt) = expr.else_branch {
+                    self.execute(stmt)?;
+                };
+            }
         }
         Ok(())
     }
@@ -89,10 +97,7 @@ impl Interpreter {
                         let val = Interpreter::convert_number_operator(val.operator, right)?;
                         LiteralValue::Number(-val)
                     }
-                    TokenType::Bang => match right {
-                        LiteralValue::Bool(_) => right,
-                        _ => LiteralValue::Bool(false),
-                    },
+                    TokenType::Bang => LiteralValue::Bool(Interpreter::is_truthy(right)),
                     // Unreachable.
                     _ => LiteralValue::None,
                 };
@@ -167,6 +172,15 @@ impl Interpreter {
             }
         }
     }
+
+    fn is_truthy(val: LiteralValue) -> bool {
+        match val {
+            LiteralValue::Bool(bool_val) => bool_val,
+            LiteralValue::None => false,
+            _ => true,
+        }
+    }
+
     fn convert_number_operator<'token>(
         operator: Token<'token>,
         operand: LiteralValue,
