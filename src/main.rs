@@ -1,12 +1,12 @@
 use crate::scanner::{Token, TokenType};
 use std::{
-    env, fs,
+    env, fmt, fs,
     io::{self, Write},
     process,
 };
-
 mod astprinter;
 mod environment;
+mod functions;
 mod interpreter;
 mod parser;
 mod scanner;
@@ -64,8 +64,8 @@ impl Lox {
 
         let parser = parser::Parser::new(tokens);
         let (statements, has_parser_error) = parser.parse();
-        let res = astprinter::_AstPrinter::_print_statements(&statements);
-        dbg!(res);
+        // let res = astprinter::_AstPrinter::_print_statements(&statements);
+        // dbg!(res);
 
         if has_scan_error || has_parser_error {
             return Err(LoxError::CompileError);

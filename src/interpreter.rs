@@ -1,5 +1,6 @@
 use crate::{
     environment::{self, Environment},
+    functions,
     parser::{Expr, Stmt},
     scanner::{LiteralValue, TokenType},
 };
@@ -26,6 +27,7 @@ impl Interpreter {
     }
 
     pub fn interpret(&mut self, statements: Vec<Stmt>) -> Result<(), RuntimeError> {
+        // let a = functions::LoxFunction {};
         for statement in statements {
             self.execute(&statement)?
         }
@@ -69,6 +71,7 @@ impl Interpreter {
                     self.execute(&stmt.body)?;
                 }
             }
+            Stmt::Function(stmt) => {}
         }
         Ok(())
     }
@@ -98,6 +101,16 @@ impl Interpreter {
                     _ => LiteralValue::None,
                 };
                 Ok(literal)
+            }
+            Expr::Call(expr) => {
+                let callee = self.evaluate(&expr.callee)?;
+                let arguments: Vec<LiteralValue> = expr
+                    .arguments
+                    .iter()
+                    .map(|arg| self.evaluate(arg))
+                    .collect::<Result<Vec<LiteralValue>, RuntimeError>>()?;
+                todo!()
+                // callee();
             }
             Expr::Binary(val) => {
                 let left = self.evaluate(&val.left)?;

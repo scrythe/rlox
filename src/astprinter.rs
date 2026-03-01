@@ -48,6 +48,9 @@ impl _AstPrinter {
                     _AstPrinter::_print_expression(&stmt.initializer)
                 )
             }
+            Stmt::Function(stmt) => {
+                todo!()
+            }
         }
     }
 
@@ -92,6 +95,7 @@ impl _AstPrinter {
                 _AstPrinter::_print_expression(&logcal_expr.left),
                 _AstPrinter::_print_expression(&logcal_expr.right)
             ),
+            Expr::Call(_) => todo!(),
         }
     }
 }

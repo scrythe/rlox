@@ -1,3 +1,5 @@
+use std::fmt;
+
 use crate::LoxError;
 use crate::scanner::{LiteralValue, Token, TokenType};
 
@@ -27,6 +29,7 @@ define_ast!(
     assign_expr, Assign<'source> -> name: Token<'source> , value: Expr<'source>;
     binary_expr, Binary<'source> -> left: Expr<'source> , operator: Token<'source> , right: Expr<'source>;
     grouping_expr, Grouping<'source> -> expression: Expr<'source>;
+    call_expr, Call<'source> -> callee: Expr<'source>, line: u32, arguments: Vec<Expr<'source>>;
     literal_expr, Literal -> value: LiteralValue;
     logiccal_expr, Logical<'source> -> left: Expr<'source> , operator: Token<'source> , right: Expr<'source>;
     unary_expr, Unary<'source> -> operator: Token<'source> , right: Expr<'source>;
@@ -36,6 +39,7 @@ define_ast!(
     Stmt<'source>;
     block_stmt, Block<'source> -> statements: Vec<Stmt<'source>>;
     expression_stmt, Expression<'source> -> expression: Expr<'source>;
+    function_stmt, Function<'source> -> name: Token<'source>, params: Vec<Token<'source>>, body: Vec<Stmt<'source>>;
     if_stmt, If<'source> -> condition: Expr<'source>, then_branch: Stmt<'source>, else_branch: Option<Stmt<'source>>;
     print_stmt, Pritn<'source> -> expression: Expr<'source>;
     var_stmt, Var<'source> -> name: Token<'source>, initializer: Expr<'source>;
@@ -100,11 +104,45 @@ impl<'tokens> Parser<'tokens> {
     }
 
     fn declaration(&mut self) -> Result<Stmt<'tokens>, LoxParseError> {
-        if self.match_token(&[TokenType::Var]) {
+        // declaration -> funDecl | varDecl | statement
+        if self.match_token(&[TokenType::Fun]) {
+            self.function("function")
+        } else if self.match_token(&[TokenType::Var]) {
             self.var_declaration()
         } else {
             self.statement()
         }
+    }
+
+    fn function(&mut self, kind: &str) -> Result<Stmt<'tokens>, LoxParseError> {
+        // funDecl -> "fun" function
+        // function -> IDENTIFIER -> "(" parameters? ")" block
+        // parameters -> IDENTIFIER ( "," IDENTIFIER )*
+        let name = self.consume(&TokenType::Identifier, &format!("Expect {kind} name."))?;
+        let name = name.clone();
+        self.consume(
+            &TokenType::LeftParen,
+            &format!("Expect '(' after {kind} name."),
+        )?;
+        let mut parameters = Vec::new();
+        if !self.check(&TokenType::RightParen) {
+            loop {
+                if parameters.len() >= 255 {
+                    let token = self.peek().clone();
+                    Err(self.error(&token, "Can't have more than 255 arguments"))?;
+                }
+
+                let parameter = self.consume(&TokenType::Identifier, "Expect parameter name.")?;
+                parameters.push(parameter.clone());
+                if self.match_token(&[TokenType::Comma]) {
+                    break;
+                }
+            }
+        }
+
+        self.consume(&TokenType::RightParen, "Expect ')' after parameters.")?;
+        let body = self.block_statement()?;
+        Ok(Stmt::function_stmt(name, parameters, body))
     }
 
     fn var_declaration(&mut self) -> Result<Stmt<'tokens>, LoxParseError> {
@@ -144,6 +182,7 @@ impl<'tokens> Parser<'tokens> {
     }
 
     fn for_statement(&mut self) -> Result<Stmt<'tokens>, LoxParseError> {
+        // forStmt -> "for" "(" ( varDecl | exprStmt | ";" ) expression? ";" expression? ";" ")" statement
         self.consume(&TokenType::LeftParen, "Exprect '(' after for.")?;
         let initializer = if self.match_token(&[TokenType::Semicolon]) {
             None
@@ -248,7 +287,7 @@ impl<'tokens> Parser<'tokens> {
                 return Ok(Expr::assign_expr(var.name, value));
             }
 
-            self.error(&equals_token, "Invalid assignment target.");
+            Err(self.error(&equals_token, "Invalid assignment target."))?;
         }
         Ok(expr)
     }
@@ -325,16 +364,45 @@ impl<'tokens> Parser<'tokens> {
     }
 
     fn unary(&mut self) -> Result<Expr<'tokens>, LoxParseError> {
-        // my attempt: unary -> ( "!" | "-" )* primary
+        // my attempt: unary -> ( "!" | "-" )* call
         // unary -> ( "!" | "-" ) unary
-        //       | primary
+        //       | call
         if self.match_token(&[TokenType::Bang, TokenType::Minus]) {
             let operator = self.previous().clone();
             let right = self.unary()?;
             Ok(Expr::unary_expr(operator, right))
         } else {
-            self.primary()
+            self.call()
         }
+    }
+
+    fn call(&mut self) -> Result<Expr<'tokens>, LoxParseError> {
+        // call -> primary ( "(" arguments? ")" )
+        let mut expr = self.primary()?;
+        while self.match_token(&[TokenType::LeftParen]) {
+            expr = self.finish_call(expr)?;
+        }
+        Ok(expr)
+    }
+
+    fn finish_call(&mut self, expr: Expr<'tokens>) -> Result<Expr<'tokens>, LoxParseError> {
+        // arguments -> expression ( "," expression )*
+        let mut arguments = Vec::new();
+        if self.check(&TokenType::RightParen) {
+            loop {
+                if arguments.len() >= 255 {
+                    let token = self.peek().clone();
+                    Err(self.error(&token, "Can't have more than 255 arguments"))?;
+                }
+                arguments.push(self.expression()?);
+                if self.match_token(&[TokenType::Comma]) {
+                    break;
+                }
+            }
+        }
+
+        let paren = self.consume(&TokenType::RightParen, "Expect ')' after arguments")?;
+        Ok(Expr::call_expr(expr, paren.line, arguments))
     }
 
     fn primary(&mut self) -> Result<Expr<'tokens>, LoxParseError> {

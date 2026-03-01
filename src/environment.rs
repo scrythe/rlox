@@ -1,12 +1,12 @@
 use std::{collections::HashMap, mem};
 
 use crate::{
-    interpreter::RuntimeError,
+    interpreter::{Object, RuntimeError},
     scanner::{LiteralValue, Token},
 };
 
 pub struct Environment {
-    values: HashMap<String, LiteralValue>,
+    values: HashMap<String, Object>,
     enclosing: Option<Box<Environment>>,
 }
 
@@ -31,11 +31,11 @@ impl Environment {
         *upper_env
     }
 
-    pub fn define(&mut self, name: &str, value: LiteralValue) {
+    pub fn define(&mut self, name: &str, value: Object) {
         self.values.insert(name.to_string(), value);
     }
 
-    pub fn get<'token>(&self, name: &Token<'token>) -> Result<&LiteralValue, RuntimeError> {
+    pub fn get<'token>(&self, name: &Token<'token>) -> Result<&Object, RuntimeError> {
         let var_name = name.lexeme;
         let value = self.values.get(var_name);
         match value {
@@ -53,7 +53,7 @@ impl Environment {
     pub fn assign<'token>(
         &mut self,
         name: &Token<'token>,
-        value: LiteralValue,
+        value: Object,
     ) -> Result<(), RuntimeError> {
         let var_name = name.lexeme;
         match self.values.get_mut(var_name) {
