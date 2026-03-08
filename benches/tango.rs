@@ -1,7 +1,6 @@
+use rlox::{parser, scanner};
 use std::{fs, hint::black_box};
 use tango_bench::{IntoBenchmarks, benchmark_fn, tango_benchmarks, tango_main};
-
-mod scanner;
 
 fn scanner_benchmarks() -> impl IntoBenchmarks {
     [benchmark_fn("scanner", |b| {
@@ -13,5 +12,18 @@ fn scanner_benchmarks() -> impl IntoBenchmarks {
     })]
 }
 
-tango_benchmarks!(scanner_benchmarks());
+fn parser_benchmarks() -> impl IntoBenchmarks {
+    [benchmark_fn("parser", |b| {
+        let source = fs::read_to_string("equality.lox").unwrap();
+        let source = Box::leak(Box::new(source));
+        let scanner = scanner::Scanner::new(source);
+        let (tokens, _) = scanner.scan_tokens();
+        b.iter(move || {
+            let parser = parser::Parser::new(tokens.clone());
+            black_box(parser.parse());
+        })
+    })]
+}
+
+tango_benchmarks!(scanner_benchmarks(), parser_benchmarks());
 tango_main!();
