@@ -1,6 +1,7 @@
 use divan::{AllocProfiler, Bencher};
-use rlox::scanner;
 use std::{fs, hint::black_box};
+
+mod scanner;
 
 #[global_allocator]
 static ALLOC: AllocProfiler = AllocProfiler::system();

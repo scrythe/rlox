@@ -1,6 +1,7 @@
-use rlox::scanner;
 use std::{fs, hint::black_box};
 use tango_bench::{IntoBenchmarks, benchmark_fn, tango_benchmarks, tango_main};
+
+mod scanner;
 
 fn scanner_benchmarks() -> impl IntoBenchmarks {
     [benchmark_fn("scanner", |b| {

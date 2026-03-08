@@ -1,5 +1,6 @@
-use rlox::scanner;
 use std::{fs, hint::black_box};
+
+mod scanner;
 
 #[global_allocator]
 static ALLOC: dhat::Alloc = dhat::Alloc;
