@@ -11,6 +11,7 @@ pub mod parser;
 pub mod scanner;
 
 pub mod parser_new;
+pub mod parser_test;
 pub mod scanner_new;
 
 pub struct Lox {

@@ -1,4 +1,5 @@
-use std::marker::PhantomData;
+use core::panic;
+use std::{marker::PhantomData, mem::take};
 
 use crate::scanner_new::{Scanner, Token, TokenType};
 
@@ -138,15 +139,248 @@ pub enum Object<'strings_lt> {
 #[derive(Debug)]
 struct LoxParseError();
 
-pub struct Parser<'source, 'expr_lt, 'string_lt> {
+pub struct Parser<'source, 'stmt_lt, 'expr_lt, 'string_lt> {
     tokens: Vec<Token>,
     current: usize,
     scanner: Scanner<'source>,
-    expressions: Vec<Expr<'expr_lt, 'string_lt>>,
-    strings: Vec<String>,
+    pub expressions: Vec<Expr<'expr_lt, 'string_lt>>,
+    statements: Vec<Stmt<'stmt_lt, 'expr_lt, 'string_lt>>,
+    pub strings: Vec<String>,
 }
 
-impl<'source, 'expr_lt, 'string_lt> Parser<'source, 'expr_lt, 'string_lt> {
+impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt, 'string_lt> {
+    pub fn new(
+        tokens: Vec<Token>,
+        scanner: Scanner<'source>,
+    ) -> Parser<'source, 'stmt_lt, 'expr_lt, 'string_lt> {
+        let current = 0;
+        let expressions = Vec::new();
+        let statements = Vec::new();
+        let strings = Vec::new();
+        Parser {
+            tokens,
+            current,
+            scanner,
+            expressions,
+            statements,
+            strings,
+        }
+    }
+
+    pub fn parse(&mut self) -> (Vec<Stmt<'stmt_lt, 'expr_lt, 'string_lt>>, bool) {
+        // program -> statement* EOF
+        let mut has_error = false;
+        while !self.is_at_end() {
+            let statement = self.declaration();
+            match statement {
+                Ok(statement) => {
+                    self.statements.push(statement);
+                }
+                Err(_) => {
+                    has_error = true;
+                    self.synchonize()
+                }
+            }
+        }
+        let statements = take(&mut self.statements);
+        (statements, has_error)
+    }
+
+    fn synchonize(&mut self) {
+        self.advance();
+
+        while !self.is_at_end() {
+            if self.previous().token_type == TokenType::Semicolon {
+                return;
+            }
+
+            match self.peek().token_type {
+                TokenType::Class
+                | TokenType::Fun
+                | TokenType::Var
+                | TokenType::For
+                | TokenType::If
+                | TokenType::While
+                | TokenType::Print
+                | TokenType::Return => {
+                    return;
+                }
+                _ => {
+                    self.advance();
+                }
+            }
+        }
+    }
+
+    fn declaration(&mut self) -> Result<Stmt<'stmt_lt, 'expr_lt, 'string_lt>, LoxParseError> {
+        if self.match_token(&[TokenType::Var]) {
+            self.var_declaration()
+        } else {
+            self.statement()
+        }
+    }
+
+    fn var_declaration(&mut self) -> Result<Stmt<'stmt_lt, 'expr_lt, 'string_lt>, LoxParseError> {
+        // varDecl -> "var" IDENTIFIER ( "=" expression )? ";"
+        let name = self
+            .consume(&TokenType::Identifier, "Expect variable name.")?
+            .clone();
+
+        let name = self.get_lexeme(name).to_string();
+        let name_id = self.add_string(name);
+
+        let initializer = if self.match_token(&[TokenType::Equal]) {
+            self.expression()?
+        } else {
+            Expr::literal_expr(Object::None)
+        };
+
+        self.consume(
+            &TokenType::Semicolon,
+            "Expect ';' after variable declaration",
+        )?;
+
+        let initializer_id = self.add_expression(initializer);
+
+        Ok(Stmt::var_stmt(name_id, initializer_id))
+    }
+
+    fn statement(&mut self) -> Result<Stmt<'stmt_lt, 'expr_lt, 'string_lt>, LoxParseError> {
+        // statement -> exprStmt | forStmt | ifStmt | printStmt | whileStmt | block
+        if self.match_token(&[TokenType::For]) {
+            self.for_statement()
+        } else if self.match_token(&[TokenType::If]) {
+            self.if_statement()
+        } else if self.match_token(&[TokenType::Print]) {
+            self.print_statement()
+        } else if self.match_token(&[TokenType::While]) {
+            self.while_stmt()
+        } else if self.match_token(&[TokenType::LeftBrace]) {
+            let (start, end) = self.block_statement()?;
+            Ok(Stmt::block_stmt(start, end, PhantomData))
+        } else {
+            self.expression_statement()
+        }
+    }
+
+    fn for_statement(&mut self) -> Result<Stmt<'stmt_lt, 'expr_lt, 'string_lt>, LoxParseError> {
+        self.consume(&TokenType::LeftParen, "Exprect '(' after for.")?;
+        let initializer = if self.match_token(&[TokenType::Semicolon]) {
+            None
+        } else if self.match_token(&[TokenType::Var]) {
+            Some(self.var_declaration()?)
+        } else {
+            Some(self.expression_statement()?)
+        };
+
+        let condition = if !self.check(&TokenType::Semicolon) {
+            self.expression()?
+        } else {
+            Expr::literal_expr(Object::Bool(true))
+        };
+        self.consume(&TokenType::Semicolon, "Exprect ';' after loop condition.")?;
+
+        let increment = if !self.check(&TokenType::RightParen) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+        self.consume(&TokenType::RightParen, "Exprect ')' after loop clause.")?;
+
+        let mut body = self.statement()?;
+
+        if let Some(increment) = increment {
+            let block_start = self.statements.len() as u32 - 1;
+            self.statements.push(body);
+
+            let increment_id = self.add_expression(increment);
+            let expr_stmt = Stmt::expression_stmt(increment_id);
+
+            self.statements.push(expr_stmt);
+            let block_end = self.statements.len() as u32 - 1;
+            body = Stmt::block_stmt(block_start, block_end, PhantomData)
+        }
+
+        let condition_id = self.add_expression(condition);
+        let body_id = self.add_statements(body);
+        body = Stmt::while_stmt(condition_id, body_id);
+
+        if let Some(initializer) = initializer {
+            let block_start = self.statements.len() as u32 - 1;
+            self.statements.push(initializer);
+            self.statements.push(body);
+            let block_end = self.statements.len() as u32 - 1;
+
+            body = Stmt::block_stmt(block_start, block_end, PhantomData)
+        }
+        Ok(body)
+    }
+
+    fn while_stmt(&mut self) -> Result<Stmt<'stmt_lt, 'expr_lt, 'string_lt>, LoxParseError> {
+        // while -> "while" "(" expression ")" statement
+        self.consume(&TokenType::LeftParen, "Exprect '(' after while.")?;
+        let condition = self.expression()?;
+        self.consume(&TokenType::RightParen, "Exprect ')' after while condition.")?;
+        let condition_id = self.add_expression(condition);
+        let body = self.statement()?;
+        let body_id = self.add_statements(body);
+        Ok(Stmt::while_stmt(condition_id, body_id))
+    }
+
+    fn if_statement(&mut self) -> Result<Stmt<'stmt_lt, 'expr_lt, 'string_lt>, LoxParseError> {
+        // ifStmt -> "if" "(" expression ")" statement ( "else" statement )?
+        self.consume(&TokenType::LeftParen, "Exprect '(' after if.")?;
+        let condition = self.expression()?;
+        self.consume(&TokenType::RightParen, "Exprect ')' after if condition.")?;
+        let condition_id = self.add_expression(condition);
+
+        let then_branch = self.statement()?;
+        let then_branch_id = self.add_statements(then_branch);
+        let opt_else_branch_id = if self.match_token(&[TokenType::Else]) {
+            let else_branch_stmt = self.statement()?;
+            let else_branch_stmt_id = self.add_statements(else_branch_stmt);
+            Some(else_branch_stmt_id)
+        } else {
+            None
+        };
+        Ok(Stmt::if_stmt(
+            condition_id,
+            then_branch_id,
+            opt_else_branch_id,
+        ))
+    }
+
+    fn print_statement(&mut self) -> Result<Stmt<'stmt_lt, 'expr_lt, 'string_lt>, LoxParseError> {
+        // statement -> "print" expression ";"
+        // print already matched from fn statement
+        let value = self.expression()?;
+        self.consume(&TokenType::Semicolon, "Exprect ';' after value.")?;
+        let value_id = self.add_expression(value);
+        Ok(Stmt::print_stmt(value_id))
+    }
+
+    fn block_statement(&mut self) -> Result<(u32, u32), LoxParseError> {
+        // block -> "{" declaration "}"
+        let statements_start = self.statements.len() as u32 - 1;
+        while !self.check(&TokenType::RightBrace) && !self.is_at_end() {
+            let statement = self.declaration()?;
+            self.statements.push(statement);
+        }
+        let statements_end = self.statements.len() as u32 - 1;
+        self.consume(&TokenType::RightBrace, "Expect '}' after block")?;
+        Ok((statements_start, statements_end))
+    }
+
+    fn expression_statement(
+        &mut self,
+    ) -> Result<Stmt<'stmt_lt, 'expr_lt, 'string_lt>, LoxParseError> {
+        // statement -> expression ";"
+        let expr = self.expression()?;
+        self.consume(&TokenType::Semicolon, "Expect ';' after expression.")?;
+        let expr_id = self.add_expression(expr);
+        Ok(Stmt::expression_stmt(expr_id))
+    }
+
     fn expression(&mut self) -> Result<Expr<'expr_lt, 'string_lt>, LoxParseError> {
         // expression -> assignment
         self.assignment()
@@ -308,6 +542,12 @@ impl<'source, 'expr_lt, 'string_lt> Parser<'source, 'expr_lt, 'string_lt> {
         id
     }
 
+    fn add_statements(&mut self, stmt: Stmt<'stmt_lt, 'expr_lt, 'string_lt>) -> u32 {
+        let id = self.statements.len() as u32;
+        self.statements.push(stmt);
+        id
+    }
+
     fn consume(&mut self, token_type: &TokenType, message: &str) -> Result<&Token, LoxParseError> {
         if self.check(token_type) {
             Ok(self.advance())
@@ -366,5 +606,20 @@ impl<'source, 'expr_lt, 'string_lt> Parser<'source, 'expr_lt, 'string_lt> {
         let _ = self.scanner.scan_token();
         let lexeme = self.scanner.get_lexeme();
         str::from_utf8(lexeme).unwrap()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn sizes() {
+        dbg!(size_of::<Stmt>());
+        dbg!(size_of::<Block>());
+        dbg!(size_of::<Expression>());
+        dbg!(size_of::<If>());
+        dbg!(size_of::<Pritn>());
+        dbg!(size_of::<Var>());
+        dbg!(size_of::<While>());
     }
 }
