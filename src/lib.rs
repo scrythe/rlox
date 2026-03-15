@@ -10,6 +10,11 @@ pub mod interpreter;
 pub mod parser;
 pub mod scanner;
 
+// pub mod parser_new;
+// pub mod parser_test;
+pub mod parser_new;
+pub mod scanner_new;
+
 pub struct Lox {
     interpreter: interpreter::Interpreter,
 }

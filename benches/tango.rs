@@ -1,4 +1,6 @@
-use rlox::{parser, scanner};
+// use rlox::scanner_new as scanner;
+use rlox::parser;
+use rlox::scanner;
 use std::{fs, hint::black_box};
 use tango_bench::{IntoBenchmarks, benchmark_fn, tango_benchmarks, tango_main};
 
