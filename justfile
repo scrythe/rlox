@@ -1,14 +1,29 @@
-tango-export:
-  cargo export target/benchmarks -- bench -- bench=tango
+tango commit_name="":
+  #!/usr/bin/env bash
+  if [ -z "{{commit_name}}" ]; then
+    RUSTFLAGS=-Awarnings cargo bench --quiet --bench=tango -- compare -s 100 -o
+  else
+    RUSTFLAGS=-Awarnings cargo bench --quiet --bench=tango -- compare -s 100 -o target/benchmarks/{{commit_name}}/tango
+  fi
 
-tango:
-  cargo bench --bench=tango -- compare target/benchmarks/tango
+dhat commit_name="":
+  #!/usr/bin/env bash
+  if [ -z "{{commit_name}}" ]; then
+    RUSTFLAGS=-Awarnings cargo bench --quiet --bench=dhat
+  else
+    target/benchmarks/{{commit_name}}/dhat --bench
+  fi
 
-divan:
-  cargo bench --bench=divan
+divan commit_name="":
+  #!/usr/bin/env bash
+  if [ -z "{{commit_name}}" ]; then
+    RUSTFLAGS=-Awarnings cargo bench --quiet --bench=divan
+  else
+    target/benchmarks/{{commit_name}}/divan --bench
+  fi
 
-flamegraph:
-  CARGO_PROFILE_RELEASE_DEBUG=true cargo flamegraph -- equality.lox
+export:
+  #!/usr/bin/env bash
+  commit_name=$(git rev-parse HEAD)
+  cargo export target/benchmarks/$commit_name -- bench
 
-dhat:
-  cargo run --features dhat-heap equality.lox

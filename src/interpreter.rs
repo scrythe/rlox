@@ -231,3 +231,9 @@ impl Interpreter {
         }
     }
 }
+
+impl Default for Interpreter {
+    fn default() -> Interpreter {
+        Interpreter::new()
+    }
+}

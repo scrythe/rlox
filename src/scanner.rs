@@ -1,6 +1,5 @@
-use std::{collections::HashMap, str};
-
 use crate::LoxError;
+use std::{collections::HashMap, str};
 
 pub struct ScanError();
 

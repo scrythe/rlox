@@ -66,6 +66,12 @@ impl Lox {
     }
 }
 
+impl Default for Lox {
+    fn default() -> Lox {
+        Lox::new()
+    }
+}
+
 pub enum LoxError {
     CompileError,
     RuntimeError,

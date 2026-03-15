@@ -1,10 +1,7 @@
-use rlox::{ Lox};
+use rlox::Lox;
 use std::{env, process};
 
 fn main() {
-    #[cfg(feature = "dhat-heap")]
-    let _profiler = dhat::Profiler::new_heap();
-
     let args: Vec<String> = env::args().collect();
     let lox = Lox::new();
     if args.len() > 2 {

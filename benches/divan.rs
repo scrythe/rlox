@@ -1,17 +1,19 @@
-use divan::AllocProfiler;
-use rlox::scanner::{self, Token};
+use divan::{AllocProfiler, Bencher};
+use rlox::scanner;
+use std::{fs, hint::black_box};
 
 #[global_allocator]
 static ALLOC: AllocProfiler = AllocProfiler::system();
 
-const SOURCE: &str = include_str!("../equality.lox");
 #[divan::bench]
-fn scanner<'source>() -> (Vec<Token<'source>>, bool) {
-    let scanner = scanner::Scanner::new(SOURCE);
-    scanner.scan_tokens()
+fn scanner(bencher: Bencher) {
+    let source = fs::read_to_string("equality.lox").unwrap();
+    bencher.bench(|| {
+        let scanner = scanner::Scanner::new(&source);
+        black_box(scanner.scan_tokens())
+    });
 }
 
 fn main() {
-    // Run registered benchmarks.
     divan::main();
 }

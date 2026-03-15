@@ -71,3 +71,9 @@ impl Environment {
         }
     }
 }
+
+impl Default for Environment {
+    fn default() -> Environment {
+        Environment::new()
+    }
+}
