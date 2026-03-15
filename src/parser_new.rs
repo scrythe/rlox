@@ -1,6 +1,5 @@
 use std::marker::PhantomData;
 
-use crate::scanner::LiteralValue;
 use crate::scanner_new::{Scanner, Token, TokenType};
 
 pub enum LoxError {
@@ -46,20 +45,44 @@ macro_rules! phantom_lt_data {
 }
 
 macro_rules! define_ast {
-     ($expr_class:ident<$expr_lt:lifetime, $strings_lt:lifetime>;
-     $($class_method_name:ident, $class_types:ident $(<$($lt:lifetime),*>)? -> $($field_names:ident: $field_class_types:ty $(= $field_class_res_types:ty)? ),+;)+) => {
+    (
+        $expr_class:ident<$expr_lt:lifetime, $strings_lt:lifetime>;
+        $(
+            $class_method_name:ident,
+            $class_types:ident $(<$($lt:lifetime),*>)?
+                -> $(
+                    $field_names:ident: $field_class_types:ty $(= $field_class_res_types:ty)?
+                ),+;
+        )+
+    ) => {
         pub enum $expr_class<$expr_lt, $strings_lt> {
-            $($class_types( $class_types $(<$($lt),*>)? )),+
+            $(
+                $class_types( $class_types $(<$($lt),*>)?)
+            ),+
         }
         impl<$expr_lt, $strings_lt> $expr_class<$expr_lt, $strings_lt> {
         $(
-            pub fn $class_method_name ($($field_names: $field_class_types),+) -> $expr_class<$expr_lt, $strings_lt> { $expr_class::$class_types ($class_types {$($field_names),*, $(_markers: ( $( lt_to_PhantomData!($lt) ),* ) )? })  }
+            pub fn $class_method_name ($($field_names: $field_class_types),+)
+                -> $expr_class<$expr_lt, $strings_lt> {
+                    $expr_class::$class_types(
+                        $class_types {
+                            $($field_names),*,
+                            $(
+                                _markers: ( $(lt_to_PhantomData!($lt)),* )
+                            )?
+                        }
+                    )
+                }
         )+
         }
         $(
             pub struct $class_types $(<$($lt),*>)? {
-                $(pub $field_names: $field_class_types,)+
-                 $(_markers: phantom_lt_data!($($lt),*),)?
+                $(
+                    pub $field_names: $field_class_types,
+                )+
+                 $(
+                    _markers: phantom_lt_data!($($lt),*),
+                )?
             }
         )+
     };
@@ -94,7 +117,7 @@ define_ast!(
     variable_expr, Variable<'expr_lt> -> name: u32 = &'strings_lt str;
 );
 
-enum Object<'strings_lt> {
+pub enum Object<'strings_lt> {
     None,
     String(u32, PhantomData<&'strings_lt u32>),
     Number(f64),
