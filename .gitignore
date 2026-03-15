@@ -1,2 +1,6 @@
 debug
 target
+perf.data
+perf.data.old
+flamegraph.svg
+dhat-heap.json

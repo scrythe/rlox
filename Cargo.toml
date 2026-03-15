@@ -6,19 +6,23 @@ edition = "2024"
 [dependencies]
 dhat = { version = "0.3.3", optional = true }
 
-[profile.release]
-# codegen-units = 1
-# lto = true
-# debug = true
-
 
 [features]
 dhat-heap = ["dep:dhat"]
 
 [dev-dependencies]
-criterion = "0.8.2"
+divan = "0.1.21"
 tango-bench = "0.7.2"
 
+[profile.release]
+# codegen-units = 1
+# lto = true
+# debug = true
+
 [[bench]]
-name = "parse"
+name = "tango"
+harness = false
+
+[[bench]]
+name = "divan"
 harness = false

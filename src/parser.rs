@@ -1,5 +1,7 @@
-use crate::LoxError;
-use crate::scanner::{LiteralValue, Token, TokenType};
+use crate::{
+    LoxError,
+    scanner::{self, LiteralValue, Token, TokenType},
+};
 
 macro_rules! define_ast {
      ($expr_class:ident<$expr_lt:lifetime>;
@@ -409,7 +411,7 @@ impl<'tokens> Parser<'tokens> {
         &self.tokens[self.current - 1]
     }
 
-    fn error(&mut self, token: &Token, message: &str) -> LoxParseError {
+    fn error(&mut self, token: &scanner::Token, message: &str) -> LoxParseError {
         LoxError::error_token(token, message);
         LoxParseError()
     }
