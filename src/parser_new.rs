@@ -46,7 +46,7 @@ macro_rules! phantom_lt_data {
 
 macro_rules! define_ast {
     (
-        $expr_class:ident<$expr_lt:lifetime, $strings_lt:lifetime>;
+        $enum_class:ident<$($enum_lts:lifetime),+>;
         $(
             $class_method_name:ident,
             $class_types:ident $(<$($lt:lifetime),*>)?
@@ -55,25 +55,25 @@ macro_rules! define_ast {
                 ),+;
         )+
     ) => {
-        pub enum $expr_class<$expr_lt, $strings_lt> {
+        pub enum $enum_class<$($enum_lts),*> {
             $(
                 $class_types( $class_types $(<$($lt),*>)?)
             ),+
         }
-        impl<$expr_lt, $strings_lt> $expr_class<$expr_lt, $strings_lt> {
-        $(
-            pub fn $class_method_name ($($field_names: $field_class_types),+)
-                -> $expr_class<$expr_lt, $strings_lt> {
-                    $expr_class::$class_types(
-                        $class_types {
-                            $($field_names),*,
-                            $(
-                                _markers: ( $(lt_to_PhantomData!($lt)),* )
-                            )?
-                        }
-                    )
-                }
-        )+
+        impl<$($enum_lts),+> $enum_class<$($enum_lts),+> {
+            $(
+                pub fn $class_method_name ($($field_names: $field_class_types),+)
+                    -> Self {
+                        $enum_class::$class_types(
+                            $class_types {
+                                $($field_names),*,
+                                $(
+                                    _markers: ( $(lt_to_PhantomData!($lt)),* )
+                                )?
+                            }
+                        )
+                    }
+            )+
         }
         $(
             pub struct $class_types $(<$($lt),*>)? {
@@ -87,6 +87,7 @@ macro_rules! define_ast {
         )+
     };
 }
+
 // pub enum Expr<'expr, 'strings> {
 //     Assign(Assign<'expr, 'strings>),
 // }
@@ -115,6 +116,16 @@ define_ast!(
     logiccal_expr, Logical<'expr_lt> -> left: u32 = Expr<'expr_lt> , operator: TokenType , right: u32 = Expr<'expr_lt>;
     unary_expr, Unary<'expr_lt> -> operator: TokenType , right: u32 = Expr<'expr_lt>;
     variable_expr, Variable<'expr_lt> -> name: u32 = &'strings_lt str;
+);
+
+define_ast!(
+    Stmt<'stmt_lt, 'expr_lt, 'strings_lt>;
+    block_stmt, Block<'stmt_lt, 'expr_lt, 'strings_lt> -> statements_start: u32, statements_end: u32, statements: PhantomData<Vec<Stmt<'stmt_lt, 'expr_lt, 'strings_lt>>>;
+    expression_stmt, Expression<'expr_lt, 'strings_lt> -> expression: u32 = Expr<'expr_lt, 'strings_lt>;
+    if_stmt, If<'stmt_lt, 'expr_lt, 'strings_lt> -> condition: u32 = Expr<'expr_lt, 'strings_lt>, then_branch: u32 = Stmt<'stmt_lt, 'expr_lt, 'strings_lt>, else_branch: Option<u32> = Stmt<'stmt_lt, 'expr_lt, 'strings_lt>;
+    print_stmt, Pritn<'expr_lt, 'strings_lt> -> expression: u32 = Expr<'expr_lt, 'strings_lt>;
+    var_stmt, Var<'expr_lt, 'strings_lt> -> name: u32 = &'strings_lt str, initializer: u32 = Expr<'expr_lt, 'strings_lt>;
+    while_stmt, While<'stmt_lt, 'expr_lt, 'strings_lt> -> condition: u32 = Expr<'expr_lt, 'strings_lt>, body: u32 = Stmt<'stmt_lt, 'expr_lt, 'strings_lt>;
 );
 
 pub enum Object<'strings_lt> {
