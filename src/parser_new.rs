@@ -56,6 +56,7 @@ macro_rules! define_ast {
                 ),+;
         )+
     ) => {
+        #[derive(Clone, Debug)]
         pub enum $enum_class<$($enum_lts),*> {
             $(
                 $class_types( $class_types $(<$($lt),*>)?)
@@ -77,6 +78,7 @@ macro_rules! define_ast {
             )+
         }
         $(
+            #[derive(Clone, Debug)]
             pub struct $class_types $(<$($lt),*>)? {
                 $(
                     pub $field_names: $field_class_types,
@@ -129,6 +131,7 @@ define_ast!(
     while_stmt, While<'stmt_lt, 'expr_lt, 'strings_lt> -> condition: u32 = Expr<'expr_lt, 'strings_lt>, body: u32 = Stmt<'stmt_lt, 'expr_lt, 'strings_lt>;
 );
 
+#[derive(PartialEq, Clone, Debug)]
 pub enum Object<'strings_lt> {
     None,
     String(u32, PhantomData<&'strings_lt u32>),
@@ -143,8 +146,8 @@ pub struct Parser<'source, 'stmt_lt, 'expr_lt, 'string_lt> {
     tokens: Vec<Token>,
     current: usize,
     scanner: Scanner<'source>,
+    pub statements: Vec<Stmt<'stmt_lt, 'expr_lt, 'string_lt>>,
     pub expressions: Vec<Expr<'expr_lt, 'string_lt>>,
-    statements: Vec<Stmt<'stmt_lt, 'expr_lt, 'string_lt>>,
     pub strings: Vec<String>,
 }
 
@@ -161,20 +164,30 @@ impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt
             tokens,
             current,
             scanner,
-            expressions,
             statements,
+            expressions,
             strings,
         }
     }
 
-    pub fn parse(&mut self) -> (Vec<Stmt<'stmt_lt, 'expr_lt, 'string_lt>>, bool) {
+    pub fn parse(
+        &mut self,
+    ) -> (
+        Vec<Stmt<'stmt_lt, 'expr_lt, 'string_lt>>,
+        Vec<Stmt<'stmt_lt, 'expr_lt, 'string_lt>>,
+        Vec<Expr<'expr_lt, 'string_lt>>,
+        Vec<String>,
+        bool,
+    ) {
         // program -> statement* EOF
+        let mut statements = Vec::new();
+
         let mut has_error = false;
         while !self.is_at_end() {
             let statement = self.declaration();
             match statement {
                 Ok(statement) => {
-                    self.statements.push(statement);
+                    statements.push(statement);
                 }
                 Err(_) => {
                     has_error = true;
@@ -182,8 +195,16 @@ impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt
                 }
             }
         }
-        let statements = take(&mut self.statements);
-        (statements, has_error)
+        let statements_arena = take(&mut self.statements);
+        let expressions = take(&mut self.expressions);
+        let strings = take(&mut self.strings);
+        (
+            statements,
+            statements_arena,
+            expressions,
+            strings,
+            has_error,
+        )
     }
 
     fn synchonize(&mut self) {
@@ -290,14 +311,14 @@ impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt
         let mut body = self.statement()?;
 
         if let Some(increment) = increment {
-            let block_start = self.statements.len() as u32 - 1;
+            let block_start = self.statements.len() as u32;
             self.statements.push(body);
 
             let increment_id = self.add_expression(increment);
             let expr_stmt = Stmt::expression_stmt(increment_id);
 
+            let block_end = self.statements.len() as u32;
             self.statements.push(expr_stmt);
-            let block_end = self.statements.len() as u32 - 1;
             body = Stmt::block_stmt(block_start, block_end, PhantomData)
         }
 
@@ -306,10 +327,10 @@ impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt
         body = Stmt::while_stmt(condition_id, body_id);
 
         if let Some(initializer) = initializer {
-            let block_start = self.statements.len() as u32 - 1;
+            let block_start = self.statements.len() as u32;
             self.statements.push(initializer);
+            let block_end = self.statements.len() as u32;
             self.statements.push(body);
-            let block_end = self.statements.len() as u32 - 1;
 
             body = Stmt::block_stmt(block_start, block_end, PhantomData)
         }
@@ -361,7 +382,7 @@ impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt
 
     fn block_statement(&mut self) -> Result<(u32, u32), LoxParseError> {
         // block -> "{" declaration "}"
-        let statements_start = self.statements.len() as u32 - 1;
+        let statements_start = self.statements.len() as u32;
         while !self.check(&TokenType::RightBrace) && !self.is_at_end() {
             let statement = self.declaration()?;
             self.statements.push(statement);
@@ -511,9 +532,16 @@ impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt
             Ok(Expr::literal_expr(Object::None))
         } else if self.match_token(&[TokenType::String, TokenType::Number]) {
             let token = self.previous().clone();
-            let literal = self.get_lexeme(token).to_string();
-            let id = self.add_string(literal);
-            Ok(Expr::literal_expr(Object::String(id, PhantomData)))
+            let literal = self.get_lexeme(token.clone()).to_string();
+            if token.token_type == TokenType::String {
+                let id = self.add_string(literal);
+                Ok(Expr::literal_expr(Object::String(id, PhantomData)))
+            } else if token.token_type == TokenType::Number {
+                let number: f64 = literal.parse().unwrap();
+                Ok(Expr::literal_expr(Object::Number(number)))
+            } else {
+                panic!("should not happen");
+            }
         } else if self.match_token(&[TokenType::Identifier]) {
             let token = self.previous().clone();
             let literal = self.get_lexeme(token).to_string();

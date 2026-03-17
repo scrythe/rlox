@@ -6,7 +6,7 @@ use crate::{
 macro_rules! define_ast {
      ($expr_class:ident<$expr_lt:lifetime>;
      $($class_method_name:ident, $class_types:ident $(<$lt:lifetime>)? -> $($field_names:ident: $field_class_types:ty),+;)+) => {
-        #[derive(Debug, PartialEq)]
+        #[derive(Debug, PartialEq, Clone)]
         pub enum $expr_class<$expr_lt> {
             $($class_types(Box<$class_types $(<$lt>)? >)),+
         }
@@ -16,7 +16,7 @@ macro_rules! define_ast {
         )+
         }
         $(
-            #[derive(Debug, PartialEq)]
+            #[derive(Debug, PartialEq, Clone)]
             pub struct $class_types $(<$lt>)? {
                 $(pub $field_names: $field_class_types,)+
             }

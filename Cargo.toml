@@ -29,3 +29,7 @@ harness = false
 [[bench]]
 name = "dhat"
 harness = false
+
+[[bench]]
+name = "normal"
+harness = false

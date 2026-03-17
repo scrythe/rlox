@@ -27,3 +27,8 @@ export:
   commit_name=$(git rev-parse HEAD)
   cargo export target/benchmarks/$commit_name -- bench
 
+
+export-normal:
+  #!/usr/bin/env bash
+  cargo export target/benchmarks -- bench
+
