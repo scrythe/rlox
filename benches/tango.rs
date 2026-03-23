@@ -1,11 +1,8 @@
 // use rlox::interpreter::Interpreter;
 // use rlox::parser;
 // use rlox::scanner;
-use rlox::interpreter::Interpreter;
-use rlox::interpreter_new;
-use rlox::parser;
-use rlox::parser_new;
-use rlox::scanner;
+use rlox::interpreter_new_2;
+use rlox::parser_new_2;
 use rlox::scanner_new;
 use std::{fs, hint::black_box};
 use tango_bench::{IntoBenchmarks, benchmark_fn, tango_benchmarks, tango_main};
@@ -16,10 +13,10 @@ fn interpreter_benchmark() -> impl IntoBenchmarks {
         let source = Box::leak(Box::new(source));
         let mut scanner = scanner_new::Scanner::new(source);
         let (tokens, _) = scanner.scan_tokens();
-        let mut parser = parser_new::Parser::new(tokens.clone(), scanner);
+        let mut parser = parser_new_2::Parser::new(tokens.clone(), scanner);
         let (statements, statements_arena, expressions, strings, has_error) = parser.parse();
         b.iter(move || {
-            let mut interpreter = interpreter_new::Interpreter::new(
+            let mut interpreter = interpreter_new_2::Interpreter::new(
                 statements_arena.clone(),
                 expressions.clone(),
                 strings.clone(),

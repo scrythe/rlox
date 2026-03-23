@@ -93,29 +93,119 @@ macro_rules! define_ast {
 
 define_ast!(
     Expr<'expr_lt, 'strings_lt>;
-    assign_expr, Assign<'expr_lt, 'strings_lt> -> name: u32 = &'strings_lt str, value: u32 = Expr<'expr_lt>;
-    binary_expr, Binary<'expr_lt> -> left: u32 = Expr<'expr_lt>, operator: TokenType, right: u32 = Expr<'expr_lt>;
-    grouping_expr, Grouping<'expr_lt> -> expression: u32 = Expr<'expr_lt>;
+    assign_expr, Assign<'expr_lt, 'strings_lt> -> name: StringId, value: ExprId;
+    binary_expr, Binary<'expr_lt> -> left: ExprId, operator: TokenType, right: ExprId;
+    grouping_expr, Grouping<'expr_lt> -> expression: ExprId;
     literal_expr, Literal<'strings_lt> -> value: Object<'strings_lt>;
-    logiccal_expr, Logical<'expr_lt> -> left: u32 = Expr<'expr_lt> , operator: TokenType , right: u32 = Expr<'expr_lt>;
-    unary_expr, Unary<'expr_lt> -> operator: TokenType , right: u32 = Expr<'expr_lt>;
-    variable_expr, Variable<'expr_lt> -> name: u32 = &'strings_lt str;
+    logiccal_expr, Logical<'expr_lt> -> left: ExprId , operator: TokenType , right: ExprId;
+    unary_expr, Unary<'expr_lt> -> operator: TokenType , right: ExprId;
+    variable_expr, Variable<'expr_lt> -> name: StringId;
 );
 
 define_ast!(
     Stmt<'stmt_lt, 'expr_lt, 'strings_lt>;
-    block_stmt, Block<'stmt_lt, 'expr_lt, 'strings_lt> -> statements_start: u32, statements_end: u32, statements: PhantomData<Vec<Stmt<'stmt_lt, 'expr_lt, 'strings_lt>>>;
-    expression_stmt, Expression<'expr_lt, 'strings_lt> -> expression: u32 = Expr<'expr_lt, 'strings_lt>;
-    if_stmt, If<'stmt_lt, 'expr_lt, 'strings_lt> -> condition: u32 = Expr<'expr_lt, 'strings_lt>, then_branch: u32 = Stmt<'stmt_lt, 'expr_lt, 'strings_lt>, else_branch: Option<u32> = Stmt<'stmt_lt, 'expr_lt, 'strings_lt>;
-    print_stmt, Pritn<'expr_lt, 'strings_lt> -> expression: u32 = Expr<'expr_lt, 'strings_lt>;
-    var_stmt, Var<'expr_lt, 'strings_lt> -> name: u32 = &'strings_lt str, initializer: u32 = Expr<'expr_lt, 'strings_lt>;
-    while_stmt, While<'stmt_lt, 'expr_lt, 'strings_lt> -> condition: u32 = Expr<'expr_lt, 'strings_lt>, body: u32 = Stmt<'stmt_lt, 'expr_lt, 'strings_lt>;
+    block_stmt, Block<'stmt_lt, 'expr_lt, 'strings_lt> -> statements_start: StmtId, statements_end: StmtId;
+    expression_stmt, Expression<'expr_lt, 'strings_lt> -> expression: ExprId;
+    if_stmt, If<'stmt_lt, 'expr_lt, 'strings_lt> -> condition: ExprId, then_branch: StmtId, else_branch: Option<StmtId>;
+    print_stmt, Pritn<'expr_lt, 'strings_lt> -> expression: ExprId;
+    var_stmt, Var<'expr_lt, 'strings_lt> -> name: StringId, initializer: ExprId;
+    while_stmt, While<'stmt_lt, 'expr_lt, 'strings_lt> -> condition: ExprId, body: StmtId;
 );
+
+pub trait ArenaVecId {
+    fn id(self) -> usize;
+    fn new(i: u32) -> Self;
+}
+
+#[derive(Clone)]
+pub struct ArenaVec<I, T> {
+    vec: Vec<T>,
+    _marker: PhantomData<I>,
+}
+
+impl<I: ArenaVecId, T> ArenaVec<I, T> {
+    fn new() -> ArenaVec<I, T> {
+        let vec = Vec::new();
+        let _marker = PhantomData;
+        ArenaVec { vec, _marker }
+    }
+
+    fn allocate(&mut self, value: T) -> I {
+        let i = self.vec.len() as u32;
+        self.vec.push(value);
+        I::new(i)
+    }
+
+    fn push(&mut self, value: T) {
+        self.vec.push(value);
+    }
+
+    fn len(&self) -> usize {
+        self.vec.len()
+    }
+}
+
+impl<I: ArenaVecId, T> Default for ArenaVec<I, T> {
+    fn default() -> ArenaVec<I, T> {
+        ArenaVec::new()
+    }
+}
+
+impl<I: ArenaVecId, T> Index<I> for ArenaVec<I, T> {
+    type Output = T;
+
+    fn index(&self, index: I) -> &Self::Output {
+        &self.vec[index.id()]
+    }
+}
+
+#[derive(Clone, Debug, Copy)]
+pub struct ExprId(u32);
+impl ArenaVecId for ExprId {
+    #[inline]
+    fn id(self) -> usize {
+        self.0 as usize
+    }
+    fn new(i: u32) -> ExprId {
+        ExprId(i)
+    }
+}
+
+#[derive(Clone, Debug, Copy)]
+pub struct StmtId(pub u32);
+impl ArenaVecId for StmtId {
+    #[inline]
+    fn id(self) -> usize {
+        self.0 as usize
+    }
+    fn new(i: u32) -> StmtId {
+        StmtId(i)
+    }
+}
+
+#[derive(Clone, Debug, Copy, PartialEq)]
+pub struct StringId(pub u32);
+impl ArenaVecId for StringId {
+    #[inline]
+    fn id(self) -> usize {
+        self.0 as usize
+    }
+    fn new(i: u32) -> StringId {
+        StringId(i)
+    }
+}
+
+pub type ExpressionVec<'expr_lt, 'strings_lt> = ArenaVec<ExprId, Expr<'expr_lt, 'strings_lt>>;
+
+pub type StmtVec<'stmt_lt, 'expr_lt, 'strings_lt> =
+    ArenaVec<StmtId, Stmt<'stmt_lt, 'expr_lt, 'strings_lt>>;
+
+pub type StringVec = ArenaVec<StringId, String>;
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Object<'strings_lt> {
     None,
-    String(u32, PhantomData<&'strings_lt u32>),
+    String(StringId, PhantomData<&'strings_lt ()>),
     Number(f64),
     Bool(bool),
 }
@@ -127,9 +217,9 @@ pub struct Parser<'source, 'stmt_lt, 'expr_lt, 'string_lt> {
     tokens: Vec<Token>,
     current: usize,
     scanner: Scanner<'source>,
-    pub statements: Vec<Stmt<'stmt_lt, 'expr_lt, 'string_lt>>,
-    pub expressions: Vec<Expr<'expr_lt, 'string_lt>>,
-    pub strings: Vec<String>,
+    pub statements: StmtVec<'stmt_lt, 'expr_lt, 'string_lt>,
+    pub expressions: ExpressionVec<'expr_lt, 'string_lt>,
+    pub strings: StringVec,
 }
 
 impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt, 'string_lt> {
@@ -138,9 +228,9 @@ impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt
         scanner: Scanner<'source>,
     ) -> Parser<'source, 'stmt_lt, 'expr_lt, 'string_lt> {
         let current = 0;
-        let expressions = Vec::new();
-        let statements = Vec::new();
-        let strings = Vec::new();
+        let statements = StmtVec::new();
+        let expressions = ExpressionVec::new();
+        let strings = StringVec::new();
         Parser {
             tokens,
             current,
@@ -155,9 +245,9 @@ impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt
         &mut self,
     ) -> (
         Vec<Stmt<'stmt_lt, 'expr_lt, 'string_lt>>,
-        Vec<Stmt<'stmt_lt, 'expr_lt, 'string_lt>>,
-        Vec<Expr<'expr_lt, 'string_lt>>,
-        Vec<String>,
+        StmtVec<'stmt_lt, 'expr_lt, 'string_lt>,
+        ExpressionVec<'expr_lt, 'string_lt>,
+        StringVec,
         bool,
     ) {
         // program -> statement* EOF
@@ -229,7 +319,7 @@ impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt
             .clone();
 
         let name = self.get_lexeme(name).to_string();
-        let name_id = self.add_string(name);
+        let name_id = self.strings.allocate(name);
 
         let initializer = if self.match_token(&[TokenType::Equal]) {
             self.expression()?
@@ -242,7 +332,7 @@ impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt
             "Expect ';' after variable declaration",
         )?;
 
-        let initializer_id = self.add_expression(initializer);
+        let initializer_id = self.expressions.allocate(initializer);
 
         Ok(Stmt::var_stmt(name_id, initializer_id))
     }
@@ -259,7 +349,7 @@ impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt
             self.while_stmt()
         } else if self.match_token(&[TokenType::LeftBrace]) {
             let (start, end) = self.block_statement()?;
-            Ok(Stmt::block_stmt(start, end, PhantomData))
+            Ok(Stmt::block_stmt(start, end))
         } else {
             self.expression_statement()
         }
@@ -292,28 +382,24 @@ impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt
         let mut body = self.statement()?;
 
         if let Some(increment) = increment {
-            let block_start = self.statements.len() as u32;
-            self.statements.push(body);
+            let block_start = self.statements.allocate(body);
 
-            let increment_id = self.add_expression(increment);
+            let increment_id = self.expressions.allocate(increment);
             let expr_stmt = Stmt::expression_stmt(increment_id);
 
-            let block_end = self.statements.len() as u32;
-            self.statements.push(expr_stmt);
-            body = Stmt::block_stmt(block_start, block_end, PhantomData)
+            let block_end = self.statements.allocate(expr_stmt);
+            body = Stmt::block_stmt(block_start, block_end)
         }
 
-        let condition_id = self.add_expression(condition);
-        let body_id = self.add_statements(body);
+        let condition_id = self.expressions.allocate(condition);
+        let body_id = self.statements.allocate(body);
         body = Stmt::while_stmt(condition_id, body_id);
 
         if let Some(initializer) = initializer {
-            let block_start = self.statements.len() as u32;
-            self.statements.push(initializer);
-            let block_end = self.statements.len() as u32;
-            self.statements.push(body);
+            let block_start = self.statements.allocate(initializer);
+            let block_end = self.statements.allocate(body);
 
-            body = Stmt::block_stmt(block_start, block_end, PhantomData)
+            body = Stmt::block_stmt(block_start, block_end)
         }
         Ok(body)
     }
@@ -323,9 +409,9 @@ impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt
         self.consume(&TokenType::LeftParen, "Exprect '(' after while.")?;
         let condition = self.expression()?;
         self.consume(&TokenType::RightParen, "Exprect ')' after while condition.")?;
-        let condition_id = self.add_expression(condition);
+        let condition_id = self.expressions.allocate(condition);
         let body = self.statement()?;
-        let body_id = self.add_statements(body);
+        let body_id = self.statements.allocate(body);
         Ok(Stmt::while_stmt(condition_id, body_id))
     }
 
@@ -334,13 +420,13 @@ impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt
         self.consume(&TokenType::LeftParen, "Exprect '(' after if.")?;
         let condition = self.expression()?;
         self.consume(&TokenType::RightParen, "Exprect ')' after if condition.")?;
-        let condition_id = self.add_expression(condition);
+        let condition_id = self.expressions.allocate(condition);
 
         let then_branch = self.statement()?;
-        let then_branch_id = self.add_statements(then_branch);
+        let then_branch_id = self.statements.allocate(then_branch);
         let opt_else_branch_id = if self.match_token(&[TokenType::Else]) {
             let else_branch_stmt = self.statement()?;
-            let else_branch_stmt_id = self.add_statements(else_branch_stmt);
+            let else_branch_stmt_id = self.statements.allocate(else_branch_stmt);
             Some(else_branch_stmt_id)
         } else {
             None
@@ -357,11 +443,11 @@ impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt
         // print already matched from fn statement
         let value = self.expression()?;
         self.consume(&TokenType::Semicolon, "Exprect ';' after value.")?;
-        let value_id = self.add_expression(value);
+        let value_id = self.expressions.allocate(value);
         Ok(Stmt::print_stmt(value_id))
     }
 
-    fn block_statement(&mut self) -> Result<(u32, u32), LoxParseError> {
+    fn block_statement(&mut self) -> Result<(StmtId, StmtId), LoxParseError> {
         // block -> "{" declaration "}"
         let statements_start = self.statements.len() as u32;
         while !self.check(&TokenType::RightBrace) && !self.is_at_end() {
@@ -370,7 +456,7 @@ impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt
         }
         let statements_end = self.statements.len() as u32 - 1;
         self.consume(&TokenType::RightBrace, "Expect '}' after block")?;
-        Ok((statements_start, statements_end))
+        Ok((StmtId(statements_start), StmtId(statements_end)))
     }
 
     fn expression_statement(
@@ -379,7 +465,7 @@ impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt
         // statement -> expression ";"
         let expr = self.expression()?;
         self.consume(&TokenType::Semicolon, "Expect ';' after expression.")?;
-        let expr_id = self.add_expression(expr);
+        let expr_id = self.expressions.allocate(expr);
         Ok(Stmt::expression_stmt(expr_id))
     }
 
@@ -395,7 +481,7 @@ impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt
         if self.match_token(&[TokenType::Equal]) {
             let equals_token = self.previous().clone();
             let value = self.assignment()?;
-            let id = self.add_expression(value);
+            let id = self.expressions.allocate(value);
 
             if let Expr::Variable(var) = expr {
                 return Ok(Expr::assign_expr(var.name, id));
@@ -412,8 +498,8 @@ impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt
         while self.match_token(&[TokenType::Or]) {
             let operator = self.previous().token_type.clone();
             let right = self.and()?;
-            let expr_id = self.add_expression(expr);
-            let right_id = self.add_expression(right);
+            let expr_id = self.expressions.allocate(expr);
+            let right_id = self.expressions.allocate(right);
             expr = Expr::logiccal_expr(expr_id, operator, right_id);
         }
         Ok(expr)
@@ -425,8 +511,8 @@ impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt
         while self.match_token(&[TokenType::And]) {
             let operator = self.previous().token_type.clone();
             let right = self.equality()?;
-            let expr_id = self.add_expression(expr);
-            let right_id = self.add_expression(right);
+            let expr_id = self.expressions.allocate(expr);
+            let right_id = self.expressions.allocate(right);
             expr = Expr::logiccal_expr(expr_id, operator, right_id);
         }
         Ok(expr)
@@ -438,8 +524,8 @@ impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt
         while self.match_token(&[TokenType::BangEqual, TokenType::EqualEqual]) {
             let operator = self.previous().token_type.clone();
             let right = self.comparison()?;
-            let expr_id = self.add_expression(expr);
-            let right_id = self.add_expression(right);
+            let expr_id = self.expressions.allocate(expr);
+            let right_id = self.expressions.allocate(right);
             expr = Expr::binary_expr(expr_id, operator, right_id);
         }
         Ok(expr)
@@ -456,8 +542,8 @@ impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt
         ]) {
             let operator = self.previous().token_type.clone();
             let right = self.term()?;
-            let expr_id = self.add_expression(expr);
-            let right_id = self.add_expression(right);
+            let expr_id = self.expressions.allocate(expr);
+            let right_id = self.expressions.allocate(right);
             expr = Expr::binary_expr(expr_id, operator, right_id);
         }
         Ok(expr)
@@ -469,8 +555,8 @@ impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt
         while self.match_token(&[TokenType::Minus, TokenType::Plus]) {
             let operator = self.previous().token_type.clone();
             let right = self.factor()?;
-            let expr_id = self.add_expression(expr);
-            let right_id = self.add_expression(right);
+            let expr_id = self.expressions.allocate(expr);
+            let right_id = self.expressions.allocate(right);
             expr = Expr::binary_expr(expr_id, operator, right_id);
         }
         Ok(expr)
@@ -482,8 +568,8 @@ impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt
         while self.match_token(&[TokenType::Slash, TokenType::Star]) {
             let operator = self.previous().token_type.clone();
             let right = self.unary()?;
-            let expr_id = self.add_expression(expr);
-            let right_id = self.add_expression(right);
+            let expr_id = self.expressions.allocate(expr);
+            let right_id = self.expressions.allocate(right);
             expr = Expr::binary_expr(expr_id, operator, right_id);
         }
         Ok(expr)
@@ -496,7 +582,7 @@ impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt
         if self.match_token(&[TokenType::Bang, TokenType::Minus]) {
             let operator = self.previous().token_type.clone();
             let right = self.unary()?;
-            let right_id = self.add_expression(right);
+            let right_id = self.expressions.allocate(right);
             Ok(Expr::unary_expr(operator, right_id))
         } else {
             self.primary()
@@ -515,7 +601,7 @@ impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt
             let token = self.previous().clone();
             let literal = self.get_lexeme(token.clone()).to_string();
             if token.token_type == TokenType::String {
-                let id = self.add_string(literal);
+                let id = self.strings.allocate(literal);
                 Ok(Expr::literal_expr(Object::String(id, PhantomData)))
             } else if token.token_type == TokenType::Number {
                 let number: f64 = literal.parse().unwrap();
@@ -526,35 +612,17 @@ impl<'source, 'stmt_lt, 'expr_lt, 'string_lt> Parser<'source, 'stmt_lt, 'expr_lt
         } else if self.match_token(&[TokenType::Identifier]) {
             let token = self.previous().clone();
             let literal = self.get_lexeme(token).to_string();
-            self.strings.push(literal);
-            Ok(Expr::variable_expr(self.strings.len() as u32 - 1))
+            let string_id = self.strings.allocate(literal);
+            Ok(Expr::variable_expr(string_id))
         } else if self.match_token(&[TokenType::LeftParen]) {
             let expr = self.expression()?;
             self.consume(&TokenType::RightParen, "Expect ')' after expression.")?;
-            let id = self.add_expression(expr);
+            let id = self.expressions.allocate(expr);
             Ok(Expr::grouping_expr(id))
         } else {
             let token = self.peek().clone();
             Err(self.error(token, "Expect expression"))
         }
-    }
-
-    fn add_string(&mut self, string: String) -> u32 {
-        let id = self.strings.len() as u32;
-        self.strings.push(string);
-        id
-    }
-
-    fn add_expression(&mut self, expr: Expr<'expr_lt, 'string_lt>) -> u32 {
-        let id = self.expressions.len() as u32;
-        self.expressions.push(expr);
-        id
-    }
-
-    fn add_statements(&mut self, stmt: Stmt<'stmt_lt, 'expr_lt, 'string_lt>) -> u32 {
-        let id = self.statements.len() as u32;
-        self.statements.push(stmt);
-        id
     }
 
     fn consume(&mut self, token_type: &TokenType, message: &str) -> Result<&Token, LoxParseError> {

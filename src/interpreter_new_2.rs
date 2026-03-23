@@ -1,10 +1,9 @@
-use std::marker::PhantomData;
-
 use crate::{
-    environment_new::{self as environment, Environment},
-    parser_new::{Expr, Object, Stmt},
+    environment_new_2::{self as environment, Environment},
+    parser_new_2::{Expr, ExprId, ExpressionVec, Object, Stmt, StmtId, StmtVec, StringVec},
     scanner_new::TokenType,
 };
+use std::marker::PhantomData;
 
 pub struct RuntimeError {
     pub line: u32,
@@ -19,21 +18,21 @@ impl RuntimeError {
 
 enum StmtOrId<'stmt_lt, 'expr_lt, 'string_lt> {
     Stmt(&'stmt_lt Stmt<'stmt_lt, 'expr_lt, 'string_lt>),
-    Id(u32),
+    Id(StmtId),
 }
 
 pub struct Interpreter<'stmt_lt, 'expr_lt, 'string_lt> {
     environment: environment::Environment<'string_lt>,
-    statements: Vec<Stmt<'stmt_lt, 'expr_lt, 'string_lt>>,
-    expressions: Vec<Expr<'expr_lt, 'string_lt>>,
-    strings: Vec<String>,
+    statements: StmtVec<'stmt_lt, 'expr_lt, 'string_lt>,
+    expressions: ExpressionVec<'expr_lt, 'string_lt>,
+    strings: StringVec,
 }
 
 impl<'stmt_lt, 'expr_lt, 'string_lt> Interpreter<'stmt_lt, 'expr_lt, 'string_lt> {
     pub fn new(
-        statements: Vec<Stmt<'stmt_lt, 'expr_lt, 'string_lt>>,
-        expressions: Vec<Expr<'expr_lt, 'string_lt>>,
-        strings: Vec<String>,
+        statements: StmtVec<'stmt_lt, 'expr_lt, 'string_lt>,
+        expressions: ExpressionVec<'expr_lt, 'string_lt>,
+        strings: StringVec,
     ) -> Interpreter<'stmt_lt, 'expr_lt, 'string_lt> {
         let environment = Environment::new();
         Interpreter {
@@ -55,14 +54,14 @@ impl<'stmt_lt, 'expr_lt, 'string_lt> Interpreter<'stmt_lt, 'expr_lt, 'string_lt>
         // self.environment = Environment::new_enclosing(self.environment);
         let stmt = match stmt_or_id {
             StmtOrId::Stmt(stmt) => stmt,
-            StmtOrId::Id(id) => self.get_statement(id),
+            StmtOrId::Id(id) => &self.statements[id],
         };
 
         match stmt {
             Stmt::Var(stmt) => {
                 let name = stmt.name;
                 let value = self.evaluate(stmt.initializer)?;
-                let name = &self.strings[name as usize];
+                let name = &self.strings[name];
                 self.environment.define(name, value);
             }
             Stmt::Pritn(stmt) => {
@@ -76,8 +75,8 @@ impl<'stmt_lt, 'expr_lt, 'string_lt> Interpreter<'stmt_lt, 'expr_lt, 'string_lt>
                 let statements_start = stmt.statements_start;
                 let statements_end = stmt.statements_end;
                 self.environment.swap_new_scoped_env();
-                for statement_id in statements_start..=statements_end {
-                    if let Err(err) = self.execute(StmtOrId::Id(statement_id)) {
+                for statement_id in statements_start.0..=statements_end.0 {
+                    if let Err(err) = self.execute(StmtOrId::Id(StmtId(statement_id))) {
                         self.environment = self.environment.get_upper_env();
                         return Err(err);
                     }
@@ -106,10 +105,10 @@ impl<'stmt_lt, 'expr_lt, 'string_lt> Interpreter<'stmt_lt, 'expr_lt, 'string_lt>
         Ok(())
     }
 
-    fn evaluate(&mut self, expression_id: u32) -> Result<Object<'string_lt>, RuntimeError> {
-        match self.get_expression(expression_id) {
+    fn evaluate(&mut self, expression_id: ExprId) -> Result<Object<'string_lt>, RuntimeError> {
+        match &self.expressions[expression_id] {
             Expr::Variable(var) => {
-                let name = self.get_string(var.name);
+                let name = &self.strings[var.name];
                 let value = self.environment.get(name)?;
                 Ok(value.clone())
             }
@@ -255,7 +254,7 @@ impl<'stmt_lt, 'expr_lt, 'string_lt> Interpreter<'stmt_lt, 'expr_lt, 'string_lt>
             Expr::Assign(val) => {
                 let name = val.name;
                 let value = self.evaluate(val.value)?;
-                let name = &self.strings[name as usize];
+                let name = &self.strings[name];
                 self.environment.assign(name, value.clone())?;
                 Ok(value)
             }
@@ -267,7 +266,7 @@ impl<'stmt_lt, 'expr_lt, 'string_lt> Interpreter<'stmt_lt, 'expr_lt, 'string_lt>
             Object::None => "nil".to_string(),
             Object::Number(number) => number.to_string(),
             Object::Bool(bool) => bool.to_string(),
-            Object::String(text_id, _) => self.strings[text_id as usize].clone(),
+            Object::String(text_id, _) => self.strings[text_id].clone(),
         }
     }
 
@@ -311,21 +310,6 @@ impl<'stmt_lt, 'expr_lt, 'string_lt> Interpreter<'stmt_lt, 'expr_lt, 'string_lt>
         } else {
             a == b
         }
-    }
-
-    #[inline]
-    fn get_string(&self, string_id: u32) -> &str {
-        &self.strings[string_id as usize]
-    }
-
-    #[inline]
-    fn get_statement(&self, statement_id: u32) -> &Stmt<'stmt_lt, 'expr_lt, 'string_lt> {
-        &self.statements[statement_id as usize]
-    }
-
-    #[inline]
-    fn get_expression(&self, expression_id: u32) -> &Expr<'expr_lt, 'string_lt> {
-        &self.expressions[expression_id as usize]
     }
 }
 

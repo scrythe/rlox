@@ -13,8 +13,11 @@ pub mod scanner;
 // pub mod environments;
 pub mod astprinter_new;
 pub mod environment_new;
+pub mod environment_new_2;
 pub mod interpreter_new;
+pub mod interpreter_new_2;
 pub mod parser_new;
+pub mod parser_new_2;
 pub mod scanner_new;
 
 pub struct Lox {
